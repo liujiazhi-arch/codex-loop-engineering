@@ -21,7 +21,7 @@
   "interface": {
     "displayName": "Codex Loop Engineering",
     "shortDescription": "Run disciplined planning, execution, review, and repair loops in Codex",
-    "longDescription": "Codex Loop Engineering helps Codex handle substantial projects with route tiers, artifact-first handoffs, independent review, arbitration, repair loops, and explicit stop conditions. It is designed for long-running coding, research, product, content, and workflow projects where a single-pass plan is not enough.",
+    "longDescription": "Codex Loop Engineering turns long-running Codex work into controlled loops with explicit goal, state, context, act, capture, and stop interfaces. It helps manager and dispatcher lanes coordinate clean-context planning, execution, review, arbitration, repair, and optional Claude cross-checking without turning the project into an unstructured group chat.",
     "developerName": "liujiazhi-arch",
     "category": "Coding",
     "capabilities": [

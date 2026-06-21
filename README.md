@@ -6,6 +6,31 @@ Use it when a single pass is likely to miss edge cases: deep refactors, large fe
 
 It is intentionally narrower than Superpowers. Superpowers is a broad development methodology with many composable skills. Codex Loop Engineering is one focused plugin for long-running Codex-centered coordination: choose the smallest route that controls risk, write durable artifacts, keep independent reviews independent, and stop with evidence.
 
+## Why This Exists
+
+Loop engineering is the difference between repeatedly prompting an agent and giving the work a controlled lifecycle.
+
+Most long-running agent runs fail for predictable reasons:
+
+- no done check, so the agent does not know when to stop;
+- no capture step, so the next round forgets what happened;
+- no feedback path, so failures do not change the next input;
+- no durable state, so each round cold-starts the project again;
+- no stop condition, so cost, risk, or production changes can run away.
+
+Codex Loop Engineering turns those failure points into explicit interfaces: `goal`, `state`, `context`, `act`, `capture`, and `stop`.
+
+## Core Differentiators
+
+- **Codex-first loop harness**: designed for developers who primarily work in Codex, with Codex owning execution, arbitration, and final verification.
+- **Lifecycle control, not just prompting**: every loop defines what it is trying to do, what state it reads, how state becomes context, what the agent may do, what gets captured, and when the loop stops.
+- **Manager-routed lane work**: manager and dispatcher lanes track artifacts, deadlines, identities, and handoffs instead of turning the project into an unstructured group chat.
+- **Clean context boundaries**: planning, execution, review, arbitration, manager, and dispatcher lanes each get role-scoped context, reducing cross-agent contamination.
+- **Single-line communication between lanes**: handoffs are artifact-first and directed; review lanes do not read each other before arbitration.
+- **Codex + Claude optional cross-checking**: Claude can be used for planning or read-only review when available, but the workflow stays Codex-centered and includes honest Codex-only fallback paths.
+- **Reusable skill and harness accumulation**: repeated workflows can be promoted into skills, context packs, checkers, and forward tests instead of being rediscovered each time.
+- **Semi-automated monitoring**: long-running lanes can declare `check_after`, `deadline`, blocker signals, and state artifacts so monitoring is bounded rather than constant polling.
+
 ## What It Provides
 
 - Route tiers from direct current-thread work to full multi-lane loops.
@@ -62,6 +87,20 @@ docs/loop-engineering/YYYY-MM-DD-slug/
 
 For smaller tasks, the skill should downgrade to a checklist or direct current-thread work instead of creating unnecessary lanes.
 
+## Example Loop Shape
+
+A slow database-query optimization loop might look like this:
+
+1. **Goal**: reduce query latency without changing production data.
+2. **State**: read prior query logs, attempted indexes, execution plans, and benchmark results.
+3. **Context**: generate the next prompt from the current state and accepted feedback.
+4. **Act**: propose an optimization and run it against a safe benchmark environment.
+5. **Capture**: record SQL/index changes, timing results, costs, and regressions.
+6. **Feedback**: if the benchmark misses the target, write the comparison back into state.
+7. **Stop**: stop when latency reaches target, round/budget cap is hit, or production risk appears.
+
+The point is not that every task needs a loop. The point is that a task worth looping should not be left to memory and vibes.
+
 ## Basic Workflow
 
 1. **Route selection**: choose T0 through T5 before creating lanes.
@@ -90,6 +129,20 @@ For smaller tasks, the skill should downgrade to a checklist or direct current-t
 - Python 3 for bundled helper scripts.
 - Optional: Claude CLI if you want Claude planning or review lanes. The skill includes Codex-only independent planning/review fallback guidance when Claude is not available.
 - Optional on macOS: Terminal automation for visible named Claude lanes.
+
+## When Not To Use It
+
+Do not use a full loop for every task. It costs extra tokens, creates more artifacts, and adds coordination overhead.
+
+Use direct Codex work instead for:
+
+- tiny local fixes;
+- simple config or docs edits;
+- one-file patches with obvious verification;
+- questions or read-only explanations;
+- tasks where a checklist is enough.
+
+Use Codex Loop Engineering when the cost of losing state, mixing contexts, skipping review, or running without stop rules is higher than the orchestration overhead.
 
 ## Helper Scripts
 
