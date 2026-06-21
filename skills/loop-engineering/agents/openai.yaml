@@ -1,0 +1,5 @@
+interface:
+  display_name: Codex Loop Engineering
+  short_description: Coordinate substantial Codex projects with artifact-first loops.
+  brand_color: "#2563EB"
+  default_prompt: Use Codex Loop Engineering for this project.

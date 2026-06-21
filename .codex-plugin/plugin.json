@@ -1,0 +1,41 @@
+{
+  "name": "codex-loop-engineering",
+  "version": "0.1.0",
+  "description": "Artifact-first loop orchestration workflows for substantial Codex projects.",
+  "author": {
+    "name": "liujiazhi-arch",
+    "url": "https://github.com/liujiazhi-arch"
+  },
+  "homepage": "https://github.com/liujiazhi-arch/codex-loop-engineering",
+  "repository": "https://github.com/liujiazhi-arch/codex-loop-engineering",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "skills",
+    "agent-workflows",
+    "orchestration",
+    "code-review",
+    "planning"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Loop Engineering",
+    "shortDescription": "Run disciplined planning, execution, review, and repair loops in Codex",
+    "longDescription": "Codex Loop Engineering helps Codex handle substantial projects with route tiers, artifact-first handoffs, independent review, arbitration, repair loops, and explicit stop conditions. It is designed for long-running coding, research, product, content, and workflow projects where a single-pass plan is not enough.",
+    "developerName": "liujiazhi-arch",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Use Codex Loop Engineering for this project.",
+      "Plan a multi-agent Codex loop for this work.",
+      "Review this loop artifact and arbitrate findings."
+    ],
+    "brandColor": "#2563EB",
+    "composerIcon": "./assets/icon.svg",
+    "logo": "./assets/icon.svg"
+  }
+}
