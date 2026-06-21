@@ -6,7 +6,9 @@ Use it when a single pass is likely to miss edge cases: deep refactors, large fe
 
 It is intentionally narrower than Superpowers. Superpowers is a broad development methodology with many composable skills. Codex Loop Engineering is one focused plugin for long-running Codex-centered coordination: choose the smallest route that controls risk, write durable artifacts, keep independent reviews independent, and stop with evidence.
 
-![Codex Loop Engineering overview](assets/codex-loop-engineering-overview.png)
+![Codex Loop Engineering architecture](assets/codex-loop-engineering-architecture.png)
+
+![Codex Loop Engineering artifact workflow](assets/codex-loop-engineering-artifacts.png)
 
 ## Why This Exists
 

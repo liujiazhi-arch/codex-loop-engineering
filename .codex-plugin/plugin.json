@@ -41,7 +41,8 @@
     "composerIcon": "./assets/icon.svg",
     "logo": "./assets/icon.svg",
     "screenshots": [
-      "./assets/codex-loop-engineering-overview.png"
+      "./assets/codex-loop-engineering-architecture.png",
+      "./assets/codex-loop-engineering-artifacts.png"
     ]
   }
 }
