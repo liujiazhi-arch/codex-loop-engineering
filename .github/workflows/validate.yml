@@ -16,5 +16,5 @@ jobs:
         run: python -m py_compile skills/loop-engineering/scripts/*.py
       - name: Check public hygiene
         run: |
-          ! grep -R -n -E '/Users/apple|docs/superpowers|biology learning workbench|PPT readiness|经理Agent|计划Agent|执行Agent|审查Agent|仲裁Agent|sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9_]{20,}|github_pat_|BEGIN (RSA|OPENSSH|PRIVATE)' \
+          ! grep -R -n -E '/Users/apple|docs/superpowers|biology learning workbench|PPT readiness|经理Agent|计划Agent|执行Agent|审查Agent|仲裁Agent|未命名文件夹|截屏2026|生图|wuzuapi|apicodex|token\.txt|sk-[A-Za-z0-9_-]{20,}|ghp_[A-Za-z0-9_]{20,}|github_pat_|BEGIN (RSA|OPENSSH|PRIVATE)' \
             --exclude-dir=.git --exclude-dir=.github --exclude-dir=__pycache__ .
