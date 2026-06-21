@@ -30,7 +30,16 @@ Only skip this checkpoint when the handoff already contains an explicit user-app
 - Execution lanes may use Claude for read-only implementation-risk consultation or unclear-plan analysis. Claude must not edit files unless the user explicitly asks.
 - Review lanes may use Claude for read-only review and evidence-seeking critique.
 - Arbitration lanes may use Claude only as evidence or bounded debate input; arbitration decisions cite artifacts, not model identity.
-- Dispatcher and manager lanes must not run Claude on behalf of lanes. They may flag missing required Claude artifacts or unavailable markers.
+- Dispatcher and manager lanes must not own Claude judgment on behalf of lanes.
+  They may physically launch a named Claude lane, flag missing required Claude
+  artifacts, or record unavailable markers when acting as mechanical dispatchers.
+
+Independent planning dispatch: manager/dispatcher or a mechanical launcher may
+physically launch a Claude Terminal lane for planning when the artifact owner is
+the Claude planning lane and the packet is built from the shared brief/context
+pack. This is mechanical delivery only: the dispatcher must not write the plan,
+critique it, merge it, or inject Codex's prior conclusions into an independent
+Claude packet.
 
 ## Claude Session Lifecycle
 
@@ -41,6 +50,10 @@ Required lifecycle fields for substantive Claude use:
 ```text
 claude_session_mode: fresh | reuse | one_shot
 claude_lane_id: <named Terminal lane/session id, or "unknown">
+loop_id: <active loop id>
+lane_role: product-design-companion | strategy-companion | review | arbitration-consult | one-shot
+lane_scope: <stable topic/workstream scope inside the loop>
+reasoning_tier: high | ultra-high
 reuse_reason: <why this session should continue, or "none">
 next_expected_use: <specific next use, or "none">
 close_or_keep: close | keep | checkpoint
@@ -48,11 +61,35 @@ close_or_keep: close | keep | checkpoint
 
 Use `fresh` when independence is part of the quality gate: read-only review, adversarial critique, second opinion, or architecture pressure tests that must not inherit planning or execution bias. Fresh review Claude must receive a bounded evidence bundle; do not reuse a planning/design Claude session for review just because it is already open.
 
-Use `reuse` when continuity is valuable: ongoing strategy, product direction, UX/design critique, route comparison, or iterative planning on the same loop. Before opening a new Claude planning/design lane, manager/dispatcher should check the ledger for an existing reusable Claude companion and continue it unless it is stale, blocked, or polluted by incompatible scope.
+Use `reuse` when continuity is valuable: ongoing strategy, product direction, UX/design critique, route comparison, or iterative planning on the same loop. Before opening a new Claude planning/design lane, manager/dispatcher should check the ledger and launcher registry for an existing reusable Claude companion and continue it unless it is stale, blocked, or polluted by incompatible scope.
 
 Use `one_shot` for smoke tests, narrow bounded checks, simple artifact validation, or a single consultation with no expected follow-up.
 
-Close/archive the Claude lane when `next_expected_use: none`, the artifact says the consultation is complete, or the next phase needs independent review. Keep it only when a concrete next use is named, such as "continue product/design critique after user screenshot feedback." Use `checkpoint` when the user or manager must decide whether continuity still helps.
+Close/archive the Claude lane when `next_expected_use: none`, the artifact says the consultation is complete, or the same lane would contaminate an independent quality gate. Keep it only when a concrete next use is named, such as "continue product/design critique after user screenshot feedback." Use `checkpoint` when the user or manager must decide whether continuity still helps. Starting an independent review does not by itself require closing a useful planning/product companion; it requires a separate fresh review lane that does not inherit the companion context.
+
+Planning/product/design companion lanes must not be launched as `fresh + close`
+just because a single artifact is requested. If the interaction is part of
+ongoing strategy, product direction, UX, route comparison, or plan refinement,
+use `claude_session_mode: reuse`, name a concrete `next_expected_use`, and set
+`close_or_keep: keep|checkpoint`. If there is truly no future use, classify the
+lane as `one_shot`, not as a companion. This distinction prevents accidentally
+closing the planning context the loop needs later.
+
+For an active T3/T4 product loop, prefer one stable Claude planning/product
+companion route for the loop or major workstream, for example
+`lane_scope: product-direction`, and keep using it across adjacent
+batches. Do not create batch-numbered planning scopes such as `batch8-plan`,
+`batch9-plan`, or one-off `safe-runtime-plan` when the discussion is still the
+same product/workflow strategy. A narrower planning scope is allowed only when
+the topic is genuinely separable, or when the existing companion is documented
+as stale, blocked, polluted, or intentionally replaced in the ledger. Planning
+Claude may produce batch-specific artifacts from the stable companion; the
+artifact path changes, the companion lane normally does not.
+
+Launcher enforcement: a lane id beginning with `claude-planning-` is treated as
+planning/product continuity and must not be launched as `one_shot`. Use a stable
+companion lane with `--session-mode reuse`, or choose a clearly non-planning
+lane id for a true disposable consultation.
 
 ## Companion Versus Review Routing
 
@@ -103,6 +140,11 @@ Planning Claude:
 - may receive richer 10-15 KB bounded prompts or split context packs;
 - may continue a planning conversation while the plan is being developed;
 - must summarize discussion into a formal plan artifact before merge.
+- counts as an independent Claude plan only when it starts from the shared
+  brief/context pack and is isolated from the Codex plan until both plans land.
+- if invoked after the Codex plan already exists or with Codex conclusions in
+  the prompt, must be labeled as `pressure_test`, `critique`, or
+  `route_comparison`, not `independent_plan`.
 
 Execution Claude:
 
@@ -141,20 +183,56 @@ Arbitration Claude:
 
 ```bash
 cd "$PROJECT_ROOT"
-claude --name "$CLAUDE_LANE_ID" --permission-mode acceptEdits \
+claude --name "$CLAUDE_LANE_ID" --permission-mode bypassPermissions \
   "Read and execute this packet exactly: $CLAUDE_PACKET"
 ```
+
+- Choose `cwd` deliberately. Prefer a stable, already trusted project root for
+  Claude Terminal lanes (`PROJECT_ROOT`, the loop workspace root, or the
+  implementation project root). Avoid launching Claude from `/tmp`, scratch
+  packet directories, transient generated folders, or newly created worktrees
+  unless that directory is the actual review/execution target. Claude's
+  workspace-trust prompt is separate from `--permission-mode` and may appear
+  before `bypassPermissions` is applied. Keep packet/source paths absolute and
+  add narrow live-path access with `--add-dir` only when required.
 
 Preferred launcher:
 
 ```bash
 python3 skills/loop-engineering/scripts/launch-claude-terminal-lane.py \
   --lane-id "$CLAUDE_LANE_ID" \
+  --loop-id "$LOOP_ID" \
+  --lane-role "$CLAUDE_LANE_ROLE" \
+  --lane-scope "$CLAUDE_LANE_SCOPE" \
+  --session-mode fresh|reuse|one_shot \
+  --reasoning-tier high|ultra-high \
+  --next-expected-use "$NEXT_EXPECTED_USE" \
+  --close-or-keep close|keep|checkpoint \
   --packet "$CLAUDE_PACKET" \
   --cwd "$PROJECT_ROOT"
 ```
 
+- Before launching Claude, inspect the current registry/window state:
+
+```bash
+python3 skills/loop-engineering/scripts/launch-claude-terminal-lane.py \
+  --list
+```
+
 - For a follow-up task in the same reusable companion lane, add `--reuse`.
+- For product/design/strategy work with the same project path and role, reuse an
+  existing healthy companion lane. Choose a stable `lane_scope` for the product
+  workstream instead of baking the batch number into the scope. Reuse matching
+  is based on `cwd + loop_id + lane_role + lane_scope`; opening a second lane
+  for the same route key requires a ledger reason such as stale, blocked,
+  polluted by incompatible scope, or intentionally replaced. A related but
+  distinct topic needs a different `lane_scope`, but the reason must name the
+  boundary that makes it distinct. Do not use `one_shot` to bypass companion
+  reuse for ordinary planning simply because the next requested artifact is
+  batch-specific.
+- Default `reasoning_tier` is `high`. Reserve `ultra-high` for strategy,
+  arbitration, or major UX judgment. Do not let a reused companion lane drift to
+  a lower-default reasoning mode.
 - For a completed lane with no future use, close it after artifact validation:
 
 ```bash
@@ -163,8 +241,24 @@ python3 skills/loop-engineering/scripts/launch-claude-terminal-lane.py \
   --close
 ```
 
-- `acceptEdits` is required when Claude must write output and done artifacts.
+- Do not close reusable planning/product/design companion lanes just because the
+  current artifact is done. If `next_expected_use` names a future planning,
+  product, UX, or route-comparison checkpoint, record `close_or_keep: keep` or
+  `checkpoint` and leave the Terminal lane available for reuse. Close fresh
+  review, adversarial, second-opinion, one-shot, and no-future-use lanes.
+- Launcher close verification must use durable window evidence, not only the
+  current Terminal title. Terminal titles can revert to `-zsh` after Claude
+  exits. A clean close requires checking the recorded or visible TTY/window id,
+  tab history/custom title, matching live processes, and remaining windows. If
+  any no-future-use Terminal window survives as an idle shell, record
+  `status: close_failed` or close it by recorded TTY/window id before launching
+  another Claude lane.
+- `bypassPermissions` is the default local Terminal lane permission mode.
   `dontAsk` may let Claude process the packet but can block writes.
+- Use the launcher `--close`, not a raw Terminal close action. The launcher
+  interrupts matching lane TTY processes before closing the window, avoiding the
+  macOS Terminal running-process confirmation dialog for `claude` or
+  `caffeinate`.
 - The packet must include:
   - `lane_id`
   - `claude_session_mode`
@@ -182,6 +276,14 @@ python3 skills/loop-engineering/scripts/launch-claude-terminal-lane.py \
 - After validation, record `next_expected_use` and `close_or_keep`. Close
   one-shot/fresh review Terminal lanes with no future use; reuse existing
   companion Terminal lanes only when a named future use exists.
+- Closing is part of the Claude gate. If `close_or_keep: close`, run `--close`
+  before dispatching another Claude lane unless the close action itself fails and
+  is recorded. Do not let completed Claude windows accumulate in Terminal.
+  The launcher must not write `status: closed` unless it verifies that the
+  matching Terminal window is gone and no matching `claude`/`caffeinate`
+  process remains. If any matching process or window survives, record
+  `status: close_failed` with the remaining process/window evidence instead of
+  pretending the close succeeded.
 - Do not use terminal bridge scripts, direct `claude --bare`, or direct stdin as
   the local macOS/Codex default route. Historical artifacts that mention those
   routes remain historical evidence only.

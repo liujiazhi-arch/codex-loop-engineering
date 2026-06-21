@@ -15,11 +15,11 @@ Default ownership:
 
 ```text
 Claude + Codex both plan
-Codex merges the plan
+Merge lane merges the plan
 Codex executes
 Claude reviews read-only
-Codex subagent reviews independently
-Codex arbitrates and repairs
+Codex independent review lane/subagent reviews independently
+Arbitration lane arbitrates and repairs
 ```
 
 For tiny edits, config tweaks, docs-only notes, or simple local bug fixes, do not run the full loop unless the user asks.
@@ -39,6 +39,32 @@ First decide the smallest route that controls risk:
 9. Choose `claude_policy` for handoffs and lane artifacts; see `references/claude-policy.md`.
 10. Critical direction or degraded-tool decision? Use `references/user-checkpoints.md`.
 11. Context or handoff risk? Drop a baton before more work or handoff.
+
+## Planning Lane Execution Firewall
+
+Planning/product/design lanes must never self-promote into execution. This is a
+hard boundary, not a preference.
+
+- A planning lane may read broadly, consult Claude, research references, write or
+  repair planning/control artifacts, run validators for those artifacts, and
+  update ledger/worklog/state-feedback.
+- A planning lane must not modify production code, frontend source, tests,
+  generated data, package/config files, runtime scripts, vault notes, or project
+  structure.
+- A planning lane must not run TDD, start implementation, dispatch itself as
+  execution, or "just try" a code change because the next step seems obvious.
+- If the user interrupts planning, points out a product/strategy error, says
+  "continue", or asks the planner to reconsider, the planner revises the plan or
+  asks for a checkpoint. It does not begin execution.
+- Execution may start only from an explicit execution handoff/role, or from a new
+  user instruction after the boundary that plainly asks the current lane to
+  implement and accepts the role change. Ambiguous phrases such as "continue",
+  "按计划继续", "go on", or "fix the plan" mean continue planning/validation,
+  not execute code.
+- If a planning lane accidentally touches implementation files, stop immediately,
+  revert only that lane's own out-of-scope edits, record the violation, and
+  return to planning artifact repair. Do not continue implementation to "finish"
+  the accidental change.
 
 ## Route Tiers
 
@@ -125,6 +151,16 @@ Prefer fewer, larger execution phases after a strong strategy/tactical plan. Run
 
 After arbitration closes, manager/dispatcher should ask whether the next work should be grouped into a larger execution slice before dispatching another small lane handoff.
 
+When the user has explicitly complained that progress is too slow or that
+execution batches are too small, treat that as a standing batching constraint
+for the active loop. The next proposed execution batch must land a substantial
+user-visible workflow loop or durable product capability. Safety, hygiene,
+path-scrub, fixture, and helper hardening work should be folded into that
+larger batch as acceptance criteria unless it is an unresolved blocking P0/P1
+or the user explicitly asks for the narrow safety batch. Do not recommend a
+tiny "safe next step" merely because it is easier to review under a heavy
+multi-lane process.
+
 For substantial frontend/product-surface work, the execution contract must state the intended visible UI shape before edits: target screen, main panels/cards, empty/degraded states, backend placeholders, and the user calibration point. Prefer landing a visible skeleton tied to stable contracts before filling deep backend behavior when the user needs to judge the interface.
 
 Do not use long blank windows for ordinary work. Normal execution/review handoffs should use a practical first check and deadline; deadlines above 45 minutes need an explicit reason such as deep planning, whole-phase architecture review, long test/build operations, or slow external tools. For execution lanes, treat the deadline as a recovery threshold only when the lane appears idle, errored, or artifact-missing without active progress; if the execution lane is visibly active and still editing/testing, keep low-frequency artifact/status monitoring instead of interrupting or declaring failure. If the user says a lane is done, blocked, or wrong, treat that as an immediate state signal: check artifacts first, perform one recovery read if needed, update state/feedback, and route the next lane instead of waiting for the old deadline.
@@ -170,10 +206,19 @@ After a lane artifact lands and is validated, decide its lifecycle immediately:
 Use this Codex-primary version of the 5-step double-agent flow for T3/T4 work:
 
 1. **Dual plan**: Claude writes `10-plan-claude.md`; Codex writes `11-plan-codex.md`.
-2. **Mutual plan review**: Codex compares both plans and writes `12-plan-merged.md`; material conflicts get explicit resolution notes.
+   For an independent dual plan, dispatch Claude and Codex planning from the
+   same brief/context pack before either side reads the other's plan. Do not let
+   one planning context finish its own plan and then ask Claude for the
+   "independent" plan; that is a pressure-test, not an independent plan.
+2. **Plan merge**: A merge lane compares both completed plans and writes
+   `12-plan-merged.md`; material conflicts get explicit resolution notes.
 3. **Codex execution**: Codex executes only the merged plan and writes `20-execution-report.md`.
-4. **Claude code review**: Claude CLI performs read-only review and writes `30-review-claude.md`.
-5. **Codex subagent review + arbitration**: Codex subagent writes `31-review-codex-subagent.md`; Codex main session writes `40-arbitration.md`, repairs accepted issues, and closes with `50-final-report.md`.
+4. **Independent review**: Claude performs read-only review in a fresh bounded
+   lane and writes `30-review-claude.md`; Codex performs a separate isolated
+   review lane/subagent and writes `31-review-codex-subagent.md`.
+5. **Arbitration and repair**: A separate arbitration lane writes
+   `40-arbitration.md`, repairs accepted issues, and closes with
+   `50-final-report.md`.
 
 Repeat repair/review until the stop rules pass.
 
@@ -194,7 +239,7 @@ docs/ai-handoffs/YYYY-MM-DD-slug/
   50-final-report.md
 ```
 
-When a project already has plan conventions, follow them. If it does not, use:
+For this project, prefer existing plan conventions:
 
 ```text
 docs/loop-engineering/plans/YYYY-MM-DD-slug-claude-plan.md
@@ -227,35 +272,17 @@ Core defaults:
 - Review Claude must be a fresh independent session with a bounded evidence bundle; it must not inherit planning-Claude context or read the Codex review.
 - Claude planning/product/design sessions may be reused when continuity helps, while review/adversarial sessions stay fresh. Every substantive Claude handoff should record `claude_session_mode`, `reuse_reason`, `next_expected_use`, and `close_or_keep`; see `references/claude-policy.md`.
 - Do not treat Claude as CI for every batch. Prefer a reusable Claude companion lane for strategy/product/UX continuity, and reserve fresh Claude review for formal independent quality gates; see `references/claude-policy.md` and `references/lane-roles.md`.
-- On local macOS/Codex, substantive Claude planning, product/UX consultation, or review must use a visible named Terminal lane:
-
-```bash
-claude --name "$CLAUDE_LANE_ID" --permission-mode acceptEdits \
-  "Read and execute this packet exactly: $CLAUDE_PACKET"
-```
-
-When useful, launch it with the bundled helper:
-
-```bash
-python3 skills/loop-engineering/scripts/launch-claude-terminal-lane.py \
-  --lane-id "$CLAUDE_LANE_ID" \
-  --packet "$CLAUDE_PACKET" \
-  --cwd "$PROJECT_ROOT"
-```
-
-- Codex/dispatcher may launch the Terminal lane with AppleScript, but completion is judged only by artifacts, not by reading terminal chat.
-- Every Claude packet must specify the lane id, session mode, output artifact path, done JSON path, required headings, allowed write scope, and stop condition.
-- Claude must write the requested output artifact plus done JSON. Codex validates file existence, non-empty output, required headings, done JSON `lane_id`, and `status: done`.
-- Use `claude_session_mode: reuse` only for planning/product/design companion lanes. Use a new named Terminal lane with `claude_session_mode: fresh` for formal independent review.
-- If the next Claude task belongs to the same reusable companion lane, continue
-  the existing Terminal lane with `--reuse` instead of opening a new window.
-- If a Claude lane has `next_expected_use: none` or `close_or_keep: close`, close
-  the named Terminal lane with the launcher `--close` option after artifacts are
-  validated and ledger/worklog is updated.
-- Do not leave completed fresh review lanes open. Open Terminal windows with no
-  named future use are coordination debt.
-- Do not use terminal bridge scripts, direct `claude --bare`, or direct stdin as the local macOS/Codex default route.
-- Never accept a 0-byte, empty, or missing-heading Claude artifact. Write an explicit unavailable marker instead.
+- On local macOS/Codex, substantive Claude planning, product/UX consultation,
+  or review must use a visible named Terminal lane. Invocation syntax, launcher
+  use, trusted `cwd`, `--add-dir`, lifecycle fields, close behavior, and failure
+  markers live in `references/claude-policy.md` and
+  `references/lane-roles.md`.
+- A dispatcher/helper may physically launch Claude and validate done artifacts,
+  but it must not own the planning/review judgment or turn a sequential
+  same-context prompt into an independent plan.
+- Never accept a 0-byte, empty, missing-heading, wrong-lane, or missing done JSON
+  Claude artifact. Write an explicit unavailable marker and use the checkpoint
+  rules for required Claude gates.
 
 ## Agent Lanes And Roles
 
@@ -308,6 +335,20 @@ For T3/T4 projects, the brief should include a strategic stop target: what "good
 
 Dual plan is required for large or risky tasks unless the user explicitly chooses a single-model plan.
 
+For independent dual planning, use lane separation:
+
+- Prepare one shared brief/context pack.
+- Dispatch Claude planning and Codex planning from that same pack before either
+  side can read the other's plan.
+- A mechanical Claude launcher/helper may deliver a packet and validate the
+  output artifact, but it must not plan, critique, merge, or rewrite the plan.
+- The same Codex planning context may not write the Codex plan first and then
+  invoke Claude as the "independent" Claude plan. If that happens, label the
+  Claude artifact `claude_planning_mode: pressure_test` or
+  `claude_planning_mode: review`, not `independent_plan`.
+- Merge only after both independent artifacts exist, or write a degraded-mode
+  marker and checkpoint per `references/user-checkpoints.md`.
+
 Claude plan prompt should ask for:
 
 ```markdown
@@ -319,7 +360,11 @@ Claude plan prompt should ask for:
 ## Not Doing
 ```
 
-Codex plan uses the same shape. Generate `10-plan-claude.md` and `11-plan-codex.md` independently before merging. Do not let either plan rewrite the other.
+Codex plan uses the same shape. Generate `10-plan-claude.md` and
+`11-plan-codex.md` independently before merging. Do not let either plan rewrite
+the other, and do not let the later plan inherit the earlier plan's conclusions
+unless the artifact is explicitly classified as a critique/pressure-test rather
+than an independent plan.
 
 For large product or architecture work, plans must separate:
 
@@ -399,9 +444,16 @@ Do not overstate. Generated screenshots are not the same as inspected screenshot
 Produce reviews independently:
 
 - `30-review-claude.md`: Claude CLI read-only review.
-- `31-review-codex-subagent.md`: Codex subagent review in isolated context.
+- `31-review-codex-subagent.md`: Codex independent review lane/subagent in isolated context. The filename may keep the historical `codex-subagent-review` convention even when the route is a visible review lane.
 
-Neither review should read the other. Both should use:
+Neither review should read the other. The manager thread must not author either
+review or use its own current context as an "independent" review. Manager may
+physically dispatch or monitor review lanes, but the review judgment must come
+from a fresh review lane/thread/subagent with a bounded evidence bundle and its
+own artifact. Prefer a visible review lane for formal review when available;
+use Codex subagents only as isolated review agents or explicit Codex-only
+fallbacks, then close/archive them after artifact validation. Both reviews
+should use:
 
 ```markdown
 ## Source
@@ -432,7 +484,7 @@ Hard evidence rules:
 - Weak evidence cannot be the sole basis for `accept`.
 - Decisions must cite artifact evidence, not model identity.
 - Every accepted P0 requires strong evidence.
-- A P0 endorsed by both Claude and Codex subagent cannot be rejected without `path:line` counter-evidence.
+- A P0 endorsed by both Claude and the Codex independent review cannot be rejected without `path:line` counter-evidence.
 - `needs more evidence` means arbitration gathers evidence or stops; it must not average model opinions.
 - `not verified` means unchecked, not correct.
 
@@ -445,7 +497,7 @@ Hard evidence rules:
 - P1 must be fixed, deferred with a named reason, or disputed with resolution notes.
 - P2 may ship only if fixed or explicitly deferred.
 - P3 may be recorded without blocking.
-- If Claude and Codex subagent both mark the same issue P0 and Codex cannot disprove it with strong evidence, stop for user decision.
+- If Claude and the Codex independent review both mark the same issue P0 and Codex cannot disprove it with strong evidence, stop for user decision.
 - Stop or checkpoint when the strategic direction changes, when no new evidence appears after repeated repair, when production/destructive risk appears, or when the route tier no longer matches the task.
 
 ## Final Report
@@ -504,6 +556,21 @@ For reusable pressure scenarios and leak hygiene, read `references/forward-tests
 
 For user calibration points, degraded Claude-required flow, and Codex-only independent-review fallback, read `references/user-checkpoints.md`.
 
+After a validator-passed merged plan, a user checkpoint is not always a hard
+stop. If the user already shaped or approved the direction, the plan stays
+inside the accepted strategy, required gates passed, and no plan gap, scope
+drift, degraded gate, destructive action, or risky runtime expansion remains,
+manager/dispatcher should record the checkpoint as resolved by manager judgment
+and dispatch the execution lane. Ask the user only when judgment is uncertain or
+the direction/risk actually changes; see `references/user-checkpoints.md`.
+
+After a frontend/product preview, do not block automatically when the next action
+is only formal review/arbitration and the preview is a continuation of an
+approved direction with clean evidence and safety checks. Record
+`preview_checkpoint_resolved_by: manager` and proceed to review. Stop for the
+user when visual direction is uncertain, recently disputed, or the next step
+would add new implementation/runtime behavior.
+
 ## Skill / Plugin Promotion
 
 Promote a repeated loop pattern to a skill or plugin only after the stable parts are known. Default threshold: 10+ repeated uses, or fewer only when risk/cost is high and the pattern is already stable.
@@ -529,21 +596,32 @@ Do not turn a one-off project lesson into a skill unless it generalizes beyond t
 - Missing one of the six interfaces: goal, state, context, act, capture, stop.
 - Running this full loop for tiny edits.
 - Running full dual review after every tiny internal helper during a large planned refactor instead of batching by product surface or contract boundary.
+- Calling a sequential same-context Claude prompt an independent plan after the
+  Codex plan already exists.
+- Letting manager author or self-review code in the manager thread instead of
+  dispatching a fresh isolated review lane/subagent.
 - Letting Claude plan replace Codex's repository-grounded judgment.
 - Treating planning as a one-way model artifact instead of calibrating unclear goals, UX expectations, and acceptance criteria with the user.
 - Executing one plan before the merged plan exists.
 - Letting reviews read each other and converge artificially.
-- Calling Codex subagent feedback Claude review.
+- Calling Codex independent review feedback Claude review.
 - Pretending Claude reviewed when CLI failed.
 - Cold-starting Claude for every helper-level patch or ordinary batch as if it were CI.
 - Treating a reused Claude companion discussion as a fresh independent review.
 - Starting a fresh Claude planning/design conversation every time without checking for a reusable Claude companion lane.
+- Splitting one ongoing planning/product Claude companion into batch-numbered
+  one-shot lanes instead of reusing a stable workstream scope.
 - Reusing a planning/design Claude session for independent review, adversarial critique, or any quality gate where freshness matters.
 - Leaving old Claude sessions open with no recorded `next_expected_use` or `close_or_keep` decision.
 - Leaving completed Claude/Codex review lanes unarchived after valid review artifacts land and `next_expected_use: none`.
+- Marking a Claude Terminal lane `closed` just because the title no longer
+  contains the lane id; generic idle `-zsh` windows with matching tab
+  history/TTY/window id are still leftover lane windows.
 - Continuing past a missing required Claude plan/review as if the dual-model gate succeeded.
-- Treating Codex-only fallback as lower quality by default instead of using independent Codex subagents or isolated Codex contexts with explicit degraded markers.
-- Replacing unavailable Claude review with current-thread self-review instead of launching independent Codex subagent reviewer(s) when subagents are available.
+- Treating Codex-only fallback as lower quality by default instead of using independent Codex review/planning lane(s), subagents, or isolated contexts with explicit degraded markers.
+- Replacing unavailable Claude review with current-thread or manager-thread
+  self-review instead of launching independent Codex review lane(s)/subagent
+  reviewer(s) when available.
 - Missing skip markers.
 - Claiming generated screenshots were visually inspected.
 - Committing unrelated dirty files.
@@ -563,10 +641,19 @@ Do not turn a one-off project lesson into a skill unless it generalizes beyond t
 - missing `claude_policy` in a loop message or lane artifact.
 - Closing out required Claude without the required artifact or a real `claude-unavailable` marker.
 - Letting a hung Claude CLI recovery require process inspection or kill permissions instead of writing an unavailable marker after the policy wait.
-- Dispatcher running Claude for a lane instead of the lane owning its own Claude use.
+- Dispatcher owning Claude judgment for a lane instead of only delivering the
+  packet and validating artifacts.
 - Silently skipping conditional Claude without `Claude skipped: <reason>`.
 - Handoff rewrites or summarizes a complete artifact body instead of sending the artifact path and read requirement.
 - Polling long-running lane threads every few seconds instead of using artifact checks, `check_after`, deadlines, and one recovery read only after a missed window.
+- Continuing manual manager-thread polling after a heartbeat/monitor automation already owns the same artifact check; once automation is active, stop the manager turn unless a user signal, automation trigger, malformed artifact, stale-route cleanup, or one explicit recovery read/handoff requires action.
+- Trusting a heartbeat create response without verifying it is bound to a real
+  thread id; a saved `target_thread_id = "current"` literal can fail to wake the
+  manager thread and must be deleted or recreated.
+- Treating every valid planning closeout as a user-blocking checkpoint even when
+  the user already participated, the plan matches the accepted strategy, and all
+  required gates passed; record manager-resolved checkpoints and keep the loop
+  moving.
 - Sending every accepted review finding back to planning instead of letting arbitration repair in-scope implementation defects.
 - Running full dual review for every helper-level patch instead of reviewing larger phase/product/contract slices.
 - Starting the next tiny execution slice immediately after arbitration when a larger user-visible workflow loop should be grouped and reviewed once.

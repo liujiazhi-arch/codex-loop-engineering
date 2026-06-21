@@ -35,6 +35,34 @@ Avoid interrupting the user for:
 - choosing a smaller safe repair in arbitration via `third path`;
 - routine retries within the recorded Claude policy wait/retry rules.
 
+## Auto-Dispatch After Planning
+
+A planning checkpoint is a judgment gate, not a mandatory pause after every
+valid plan. After a merged plan or Strategic Loop Contract passes required
+heading checks and validator gates, manager/dispatcher may dispatch execution
+without asking the user again when all of these are true:
+
+- the user already participated in the planning direction or explicitly asked
+  to keep the loop moving;
+- the plan selects the user-confirmed strategic direction rather than creating a
+  new product/architecture route;
+- Claude/validator/required-gate status is clean, or the user has already
+  approved the recorded degraded mode;
+- there is no `plan-gap`, `strategy-gap`, disputed scope, malformed artifact,
+  destructive action, live-runtime expansion, or unclear acceptance criterion;
+- the next execution handoff preserves the plan's hard boundaries and stop
+  condition.
+
+In that case, record `checkpoint_resolved_by: manager` or equivalent in
+state/ledger, optionally send a short summary for visibility, and route the
+execution handoff. Do not turn every planning closeout into a user-blocking
+checkpoint.
+
+Stop for the user instead when the manager is unsure whether the plan matches
+the user's intent, when the plan changes strategy, when the user was not part of
+the decision, or when the next action would expand into mutation/runtime/tooling
+that was not already accepted.
+
 ## Checkpoint Shape
 
 Keep checkpoint prompts short and decision-oriented:
@@ -69,8 +97,8 @@ Example planning checkpoint:
 Checkpoint: Phase 3 workflow shape
 Why it matters: This decides whether execution optimizes for one complete user loop or several small command slices.
 Options:
-1. One larger user loop: guide + acquisition refresh + queue lifecycle + weekly/publication readiness.
-2. Two medium loops: daily/queue first, weekly/PPT second.
+1. One larger user loop: research + material preparation + execution + QA readiness.
+2. Two medium loops: research/materials first, execution/QA second.
 3. Small slices: command center first, then each runner separately.
 Recommended: option 2, because it improves speed without hiding too much risk.
 ```
@@ -86,6 +114,15 @@ For frontend or product-surface work, the preview checkpoint is an acceptance ga
 
 If the user rejects the preview, update the relevant plan/contract or write a superseding decision artifact before more implementation. Do not rely on chat correction alone.
 
+Manager may resolve a preview checkpoint and move into formal review when the
+preview is a continuation of a user-approved direction, execution evidence is
+clean, safety boundaries passed, and the next step is review/arbitration rather
+than more implementation or runtime expansion. Record this as
+`preview_checkpoint_resolved_by: manager`. Stop for the user instead when the
+surface is visually strategic, the user has recently expressed uncertainty or
+dissatisfaction, the screenshot/report suggests product drift, or the next step
+would implement new behavior beyond review.
+
 ## Claude-Unavailable Planning
 
 If Claude planning is required but unavailable:
@@ -95,7 +132,7 @@ If Claude planning is required but unavailable:
 3. Offer:
    - retry Claude;
    - split/optimize the prompt and retry once;
-   - proceed Codex-only with two independent Codex planning subagents or isolated contexts;
+   - proceed Codex-only with two independent Codex planning lanes, subagents, or isolated contexts;
    - pause until Claude is fixed.
 
 Do not fabricate `10-plan-claude.md` from Codex's own plan.
@@ -105,7 +142,7 @@ Do not fabricate `10-plan-claude.md` from Codex's own plan.
 When the user has no Claude or approves Codex-only mode:
 
 - keep the artifact structure explicit, but rename sources honestly, for example `10-plan-codex-independent-a.md` and `11-plan-codex-independent-b.md`;
-- launch independent Codex subagents when subagent tooling is available. Use different prompts or roles, such as product/planning and architecture/risk;
+- launch independent Codex lanes or subagents when available. Use different prompts or roles, such as product/planning and architecture/risk;
 - if subagent tooling is unavailable, use separate isolated Codex contexts/threads and record `subagent-unavailable: <reason>`;
 - prevent cross-contamination: the second planning pass must not read the first before both artifacts exist;
 - merge them with the same conflict-resolution discipline used for Claude/Codex plans;
@@ -117,14 +154,17 @@ Codex-only mode is valid, but it is a degraded/capability-different path when th
 
 When Claude review is unavailable or not configured:
 
-- launch independent Codex subagent reviewer(s) when subagent tooling is available;
-- produce two independent Codex review artifacts from subagents or isolated contexts when possible;
+- launch independent Codex review lane(s) or subagent reviewer(s) when available;
+- produce two independent Codex review artifacts from fresh review lanes, subagents, or isolated contexts when possible;
 - neither review reads the other before arbitration;
 - use the same bounded evidence bundle standards as Claude review;
 - arbitration merges findings by evidence, not by reviewer identity;
 - final report records `review_mode: codex_only_independent` and the reason Claude was not used.
 
-Do not call a single current-thread self-review an independent review. If only the current thread is available, mark `independent-review-unavailable` and ask the user whether to proceed degraded.
+Do not call a single current-thread self-review or manager-thread review an
+independent review. The manager may dispatch and validate review artifacts, but
+it must not be the reviewer. If only the current thread is available, mark
+`independent-review-unavailable` and ask the user whether to proceed degraded.
 
 ## Drift Control
 

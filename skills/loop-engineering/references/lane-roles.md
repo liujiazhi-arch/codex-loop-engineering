@@ -35,13 +35,56 @@ Manager/dispatcher must record the choice. A new thread ledger row should state 
 
 When a Claude task closes, the owner lane or dispatcher records `next_expected_use` and `close_or_keep`. Close/archive lanes with no expected follow-up; keep only lanes with a named future use. Do not let old Claude planning/design sessions become hidden state for review or arbitration.
 
+### Independence And Physical Dispatch
+
+Independence is a context boundary, not only a file name.
+
+- Formal independent planning uses at least two judgment contexts that start
+  from the same brief/context pack. Claude planning must not see the Codex plan,
+  and Codex planning must not see the Claude plan, before both artifacts exist.
+- If one planning lane writes its own plan and later asks Claude for feedback,
+  that Claude output is a critique, pressure test, or route comparison. It is
+  not an independent Claude plan unless the prompt and lane were isolated from
+  the earlier plan.
+- A dispatcher or Claude launcher/helper may perform mechanical delivery:
+  creating packets, launching a named Terminal lane, checking done JSON,
+  validating headings, and recording lifecycle. That helper must not make
+  planning, review, merge, or arbitration judgments.
+- Manager/dispatcher may launch fresh review threads or subagents, but it must
+  not write the review in the manager context or treat manager reasoning as
+  independent evidence.
+- When UI/tooling only exposes a Codex subagent instead of a visible thread,
+  the subagent is acceptable as an isolated review/planning lane if the prompt
+  is bounded, it does not read sibling artifacts before allowed, and it writes a
+  formal artifact. Record that route in the ledger.
+
+For local Claude Terminal lanes, lifecycle is a dispatch gate. Before opening a
+Claude lane, manager/dispatcher must check the launcher registry/window status
+and decide: reuse existing companion, fresh independent review, one-shot, or no
+Claude. A handoff that omits `claude_lane_id`, `lane_role`,
+`loop_id`, `lane_scope`, `reasoning_tier`, `claude_session_mode`,
+`next_expected_use`, and `close_or_keep` is incomplete. Reuse matching is based
+on the full route key:
+`cwd + loop_id + lane_role + lane_scope`; related but different topics need
+different scopes. After artifacts validate, close no-future-use lanes before
+launching more Claude work.
+
+For active product/strategy planning, the default is one stable Claude companion
+scope per major workstream, reused across adjacent batches. Do not split the
+same ongoing writing-IDE/product-direction discussion into batch-numbered
+one-shot planning lanes. A new planning Claude lane needs a recorded reason:
+the old companion is stale, blocked, polluted by incompatible context, the topic
+is genuinely separate, or the user explicitly wants a fresh second opinion.
+Batch-specific plan artifacts should be written by the stable companion where
+possible; artifact freshness does not require conversation freshness.
+
 ### Claude Terminal Lanes
 
 On local macOS/Codex, Claude lanes run through visible named Terminal sessions,
 not bridge scripts or hidden direct stdin. The launcher shape is:
 
 ```bash
-claude --name <claude-lane-id> --permission-mode acceptEdits \
+claude --name <claude-lane-id> --permission-mode bypassPermissions \
   "Read and execute this packet exactly: <packet-path>"
 ```
 
@@ -49,20 +92,55 @@ Rules:
 
 - Lane identity lives in the Claude `--name`, the packet `lane_id`, the output
   artifact, the done JSON, and the ledger row.
+- Lane state also lives in the launcher registry. Use `--list` or `--status`
+  before launch when deciding reuse versus a fresh lane.
+- Launch Claude Terminal lanes from a stable, trusted project `cwd` whenever
+  possible, such as the loop workspace root or the implementation project root.
+  Do not launch from `/tmp`, a scratch packet directory, a transient generated
+  folder, or a newly created worktree unless the handoff explicitly needs that
+  directory. Claude's workspace-trust prompt is directory-scoped and may appear
+  before permission mode is applied; using stable trusted roots avoids repeated
+  manual Yes/No prompts. Pass packet paths and source artifact paths as absolute
+  paths, and use narrow `--add-dir` only when Claude truly needs additional live
+  path access.
 - Use a persistent named Terminal lane only for planning/product/design
   companion work where continuity is valuable.
 - Use a fresh named Terminal lane for formal Claude review, adversarial critique,
   or second opinion. Do not reuse companion lanes for review gates.
+- Planning/product/design companion lanes are continuity lanes. Do not mark them
+  `fresh + close + next_expected_use: none` merely because one plan artifact
+  landed. If the lane may support the same product/strategy discussion later,
+  record `claude_session_mode: reuse`, name the next expected planning/product
+  use, and set `close_or_keep: keep|checkpoint`. If there is truly no future
+  use, call it a `one-shot` consultation instead of a companion.
 - For a reusable companion lane, send follow-up packets to the existing named
   Terminal lane with `--reuse`; do not open duplicate windows for the same
-  lane id.
+  lane id. Do not open duplicate companion windows for the same route key
+  (`cwd + loop_id + lane_role + lane_scope`) unless the previous lane is stale,
+  blocked, polluted, or intentionally replaced with a ledger reason.
 - For a completed fresh/review/one-shot lane, close the named Terminal lane
   after output/done validation and ledger/worklog capture. Use the launcher
-  `--close` option or an equivalent Terminal close action.
+  `--close` option; it interrupts matching lane TTY processes before closing so
+  Terminal does not show a running-process confirmation dialog.
+- A close is valid only after verification. The launcher should normalize TTY
+  names, terminate matching `claude`/`caffeinate` processes, verify that no
+  matching process remains, close the matching Terminal window, and verify the
+  window disappeared. Matching must use durable evidence: lane title, tab custom
+  title, tab history, registered TTY, and registered window id. Terminal often
+  falls back to a generic `-zsh` title after Claude exits; that idle shell is
+  still the lane window and must be closed or recorded as `close_failed`. If
+  either process or window remains, record `status: close_failed` with evidence;
+  do not record `closed`.
+- Do not close planning/product/design companion lanes merely because a single
+  plan artifact landed when `next_expected_use` names a future strategy,
+  product, UX, or route-comparison use. Leave them open with
+  `close_or_keep: keep|checkpoint`. macOS may warn that `claude` or `caffeinate`
+  is still running if a kept companion Terminal window is manually closed; that
+  is expected and should not be treated as a lane cleanup requirement.
 - Claude writes the requested output artifact plus done JSON. Manager/dispatcher
   monitors those files, not terminal chat.
-- `dontAsk` may block file writes; use `acceptEdits` when the lane must write
-  artifacts.
+- `dontAsk` may block file writes; local Terminal lanes default to
+  `bypassPermissions` when the lane must write artifacts.
 - A lane is not complete until output is non-empty, required headings are
   present, done JSON has the expected `lane_id` and `status: done`, and the
   result is recorded in ledger/worklog/state feedback as needed.
@@ -81,6 +159,8 @@ Rules:
 
 - Prefer continuing an existing healthy companion lane over cold-starting Claude for
   every product/design question.
+- Use a durable product/workstream `lane_scope`, not a batch-numbered scope, when
+  the same companion will guide multiple adjacent execution batches.
 - Keep companion prompts decision-oriented: current strategy, recent artifact, user
   feedback, candidate next action, specific risks/questions. Do not dump the whole
   repository by habit.
@@ -132,6 +212,10 @@ Default decisions by lane:
 - **Planning/product/design**: keep only when a concrete next product/strategy/UX
   use is named. Archive when the plan/consultation has been absorbed into a formal
   artifact and no follow-up is expected.
+  For active product loops, default to `close_or_keep: checkpoint` instead of
+  close when the user is still shaping strategy or the next batch likely needs
+  the same companion context. Close only after recording `next_expected_use: none`
+  or when the next phase requires independence rather than continuity.
 - **Manager/dispatcher**: keep for the active loop, unless the user explicitly
   pauses, cancels, or moves the loop elsewhere.
 
@@ -155,6 +239,73 @@ Planning lane should:
 - produce a merged plan with accepted/rejected/third-path decisions.
 
 Planning Claude may use a larger bounded context bundle and multiple turns. This is different from review Claude, which should be fresh and independent.
+
+### Parallel Dual Planning
+
+When a loop requires Claude + Codex plans:
+
+- Manager/dispatcher should prepare one brief/context pack and dispatch Claude
+  planning and Codex planning as separate judgment lanes as close to parallel as
+  the tools allow.
+- The Codex planning lane should not block on doing all of its own planning
+  before Claude is launched. That turns independent planning into a slower
+  serial pressure test and risks contaminating Claude with Codex conclusions.
+- The Claude lane may be launched by a mechanical dispatcher/helper, but the
+  helper only sends the packet and validates artifacts. It does not plan or
+  merge.
+- The merge lane reads both completed plans and writes accepted/rejected/third
+  path decisions. The merge lane is the first place where cross-plan comparison
+  is allowed.
+- If independent parallel dispatch is impossible, mark the limitation in the
+  artifacts, classify any later Claude output honestly, and use the
+  degraded-mode checkpoint rules before treating the result as dual-model
+  planning.
+
+### Planning Lane Hard Boundary
+
+Planning is not execution. A planning lane must not implement the plan it writes,
+even when the implementation appears straightforward, the user says "continue",
+or the user corrects the plan midstream.
+
+Allowed planning-lane writes:
+
+- briefs, Claude/Codex/merged plans, design specs, strategy/tactical/execution
+  contracts, prompt packets, unavailable markers, validator outputs, worklogs,
+  ledgers, state-feedback, and other control-plane artifacts;
+- small repairs to those planning/control artifacts, such as adding missing
+  `stop_condition`, `expected_artifacts`, `check_after`, `deadline`, or
+  `blocker_signal`.
+
+Forbidden planning-lane writes:
+
+- production Python/TypeScript/React/source files;
+- frontend components, CSS, generated app data, tests, package/config files,
+  runtime scripts, vault notes, templates, project folders, git state, commits,
+  or pushes;
+- any TDD red/green cycle, app build/test run for implementation, dev server, or
+  browser preview intended to validate a code change.
+
+Interpretation rule:
+
+- In a planning lane, "continue", "按计划继续", "go on", "fix it", or a user
+  correction means continue planning, research, Claude consultation, merged-plan
+  repair, validator repair, or checkpoint writing.
+- It does not authorize execution unless the user explicitly says to switch the
+  current lane into execution and names the implementation scope, or a
+  manager/dispatcher sends a separate execution-lane handoff.
+
+If the planning lane discovers that the next useful action is implementation, it
+must write an execution handoff/contract and stop for manager/user dispatch. It
+must not start editing implementation files itself.
+
+If the planning lane violates this boundary, the recovery rule is:
+
+1. Stop immediately.
+2. Revert only the planning lane's own out-of-scope implementation edits, without
+   reverting unrelated user or lane work.
+3. Record the boundary violation and recovery in the worklog/state-feedback when
+   appropriate.
+4. Return only to planning artifact repair or checkpoint.
 
 ## Execution Lane
 
@@ -225,7 +376,7 @@ Planning should define:
 
 If planning cannot state the strategic target, write `strategy-gap: <missing decision>` and stop for a user checkpoint. Do not compensate by writing a longer execution task list.
 
-Execution should group work into larger slices when the pieces belong to the same user workflow. Example for a research workflow workbench: daily guide/status command center, acquisition refresh facade, queue lifecycle commands, weekly project refresh, and publication readiness command/report may be grouped into one or two coherent execution slices instead of five helper-sized review loops.
+Execution should group work into larger slices when the pieces belong to the same user workflow. For example, a content production workflow might group research collection, material preparation, draft creation, editing, and QA into one or two coherent execution slices instead of five helper-sized review loops.
 
 An execution slice is too small for a full review loop when it only changes one helper, one internal function, or one local cleanup without landing a visible workflow state, product surface, durable contract, migration boundary, or risk boundary.
 
@@ -256,6 +407,10 @@ Manager/dispatcher cadence:
 - Track artifact paths, lane state, deadlines, and blockers.
 - Do not read execution threads for routine progress.
 - After an arbitration closes, consider whether the next work should be grouped into a larger execution slice before dispatching another small lane handoff.
+- If the user has repeatedly asked for faster progress or larger batches, the
+  manager must not propose a narrow hygiene/helper/safety-cleanup slice as the
+  next main batch unless it is an unresolved blocker. Fold those concerns into a
+  larger product/workflow execution contract and verify them inside that batch.
 
 ## Review Lane
 
@@ -273,6 +428,23 @@ Review lane should:
   discussion must not be reused as a fresh independent review for a later phase.
 
 Do not rely on old planning-Claude memory for review. If Claude needs project understanding, put that understanding in the review context bundle.
+
+Manager/dispatcher review rules:
+
+- The manager thread does not perform formal review. It dispatches review lanes,
+  validates review artifacts, records lifecycle, and routes arbitration.
+- A Codex review must be a fresh visible review thread when practical, or an
+  isolated Codex subagent when that is the available independent route. In both
+  cases it needs its own bounded prompt, output artifact, and lifecycle record.
+- A Claude review must be a fresh named Terminal lane with `next_expected_use:
+  none` and `close_or_keep: close` unless the user explicitly asks for a
+  continued review discussion. It must not reuse a planning or companion Claude
+  lane.
+- If Claude is unavailable, the fallback is not manager self-review. Use
+  independent Codex review lane(s)/subagent(s) or stop for degraded-mode
+  approval, as described in `user-checkpoints.md`.
+- After valid review artifacts land, close/archive no-future-use review lanes.
+  Do not leave them as hidden state for later phases.
 
 ## Arbitration Lane
 
@@ -317,6 +489,11 @@ Manager should:
 - update worklog/ledger when process lessons emerge;
 - read state/feedback events before worker chat when diagnosing repeated failures or deciding the next handoff;
 - check for reusable Claude planning/product/design companion lanes before opening a new Claude session, while keeping review Claude fresh;
+- resolve non-blocking planning checkpoints itself when the user already
+  participated in the plan, the validator/required gates passed, the plan stays
+  inside the accepted strategy, and no scope/risk uncertainty remains; record the
+  decision and dispatch the execution lane instead of asking the user again by
+  reflex;
 - keep monitoring active loops when the user asks it to keep moving.
 
 Manager must not silently execute business-code changes, overrule arbitration without evidence, or centralize all lane communication as hidden chat.
@@ -333,6 +510,10 @@ Dispatcher may:
 - perform low-frequency artifact checks;
 - include the latest state/feedback artifact path in handoffs when it changes the next context;
 - record Claude lifecycle fields (`claude_session_mode`, `reuse_reason`, `next_expected_use`, `close_or_keep`) for Claude handoffs;
+- send execution handoffs directly after a validator-passed merged plan when
+  the manager records that the user checkpoint is already resolved by prior user
+  participation and there is no strategy drift, plan gap, degraded gate, or risky
+  expansion;
 - use `read_thread` only for blockers, missed artifact windows, or recovery.
 
 Dispatcher must not plan, execute, review, or arbitrate as a substitute for the owner lane.
@@ -374,6 +555,20 @@ delete or retarget stale automations, or route the next lane.
 When the route changes, update or delete stale monitors, reminders, or heartbeat automations that still point at obsolete artifacts, lanes, or deadlines. A stale monitor is a coordination bug: it can restart superseded work or make the manager wait on an artifact that no longer matters.
 
 Use exponential backoff for repeated empty checks: first missed window, then one recovery read/handoff, then widen checks unless the lane reports active progress. If the lane reports or shows active progress, prefer continued quiet monitoring over recovery. High-frequency polling is allowed only during short critical handoffs, interactive user decisions, or known near-complete commands.
+
+If a heartbeat or monitor automation has already been created for the same
+artifact paths and owner lane, manager/dispatcher should not keep manually
+polling in the same turn. After confirming the automation exists and its prompt is
+current, stop and let the heartbeat own the next check. Resume manual action only
+on a user signal, automation wakeup, malformed/landed artifact, stale-route
+cleanup, or one explicit recovery read/handoff.
+
+When creating a heartbeat attached to the current manager thread, verify the
+created automation is actually bound to a real thread id. A persisted
+`target_thread_id = "current"` literal is invalid for reliable wakeups: delete or
+recreate that heartbeat and record the coordination defect. Do not assume a
+monitor is active just because the create call returned success; check the
+automation record when the wakeup is important for loop progress.
 
 ## Continuous Monitoring
 
@@ -443,6 +638,7 @@ expected_artifacts
 check_after
 deadline
 blocker_signal
+claude_lane_id / loop_id / lane_role / lane_scope / reasoning_tier / claude_session_mode / next_expected_use / close_or_keep when Claude is invoked
 ```
 
 Never send an unstructured "continue" for loop work.
