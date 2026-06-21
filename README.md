@@ -4,6 +4,8 @@ Codex Loop Engineering is a Codex plugin for substantial work that benefits from
 
 Use it when a single pass is likely to miss edge cases: deep refactors, large feature work, architecture-affecting fixes, research synthesis, product/design workflows, multi-file migrations, or recurring processes that need artifact-backed coordination.
 
+It is intentionally narrower than Superpowers. Superpowers is a broad development methodology with many composable skills. Codex Loop Engineering is one focused plugin for long-running Codex-centered coordination: choose the smallest route that controls risk, write durable artifacts, keep independent reviews independent, and stop with evidence.
+
 ## What It Provides
 
 - Route tiers from direct current-thread work to full multi-lane loops.
@@ -15,13 +17,25 @@ Use it when a single pass is likely to miss edge cases: deep refactors, large fe
 
 ## Install
 
-Clone the repository, then add it as a local Codex plugin source according to your Codex plugin workflow.
+Clone the repository:
 
 ```bash
 git clone https://github.com/liujiazhi-arch/codex-loop-engineering.git
 ```
 
-For local development in the Codex desktop app, you can also keep the repository under a local marketplace or personal plugin directory and install `codex-loop-engineering` from there.
+### Codex App Or Codex CLI
+
+If Codex supports installing plugins directly from GitHub in your environment, install from this repository:
+
+```text
+codex-loop-engineering
+```
+
+If you are using a local marketplace workflow, keep this repository under your plugin source directory and install `codex-loop-engineering` from that local marketplace.
+
+### Local Skill-Only Fallback
+
+If your Codex environment does not yet support plugins, copy `skills/loop-engineering` into your Codex skills directory. The plugin metadata and icon will not be used, but the skill workflow still works.
 
 ## Quick Start
 
@@ -47,6 +61,28 @@ docs/loop-engineering/YYYY-MM-DD-slug/
 ```
 
 For smaller tasks, the skill should downgrade to a checklist or direct current-thread work instead of creating unnecessary lanes.
+
+## Basic Workflow
+
+1. **Route selection**: choose T0 through T5 before creating lanes.
+2. **Contract**: define goal, state, context, act, capture, and stop.
+3. **Planning**: create a brief and, for risky work, independent plans plus a merged plan.
+4. **Execution**: Codex executes the merged plan inside the accepted scope.
+5. **Review**: use independent Claude/Codex review when the route requires it.
+6. **Arbitration and repair**: accept or reject findings by evidence, repair in scope, and verify.
+7. **Final report**: close only with changed files, review dispositions, verification output, and residual risks.
+
+## What's Inside
+
+- `skills/loop-engineering/SKILL.md`: core workflow and route tiers.
+- `references/claude-policy.md`: Claude lane policy, lifecycle, fallback, and evidence rules.
+- `references/lane-roles.md`: planning, execution, review, arbitration, manager, and dispatcher roles.
+- `references/strategic-loop-contract.md`: strategic and operational contract schema.
+- `references/state-feedback-schema.md`: event schema for multi-round state and feedback.
+- `references/user-checkpoints.md`: when to stop for user decisions.
+- `references/forward-tests.md`: pressure scenarios for future skill revisions.
+- `scripts/validate-loop-contract.py`: lightweight contract checker.
+- `scripts/launch-claude-terminal-lane.py`: macOS helper for visible Claude Terminal lanes.
 
 ## Requirements
 
@@ -76,6 +112,34 @@ python3 skills/loop-engineering/scripts/launch-claude-terminal-lane.py \
 ## Privacy
 
 This plugin does not include API keys, private endpoints, or third-party gateway code. It is a workflow plugin; generated project artifacts may contain sensitive project details, so review artifacts before sharing them publicly.
+
+## Development
+
+Run the local checks before publishing changes:
+
+```bash
+python3 /path/to/plugin-creator/scripts/validate_plugin.py .
+python3 /path/to/skill-creator/scripts/quick_validate.py skills/loop-engineering
+python3 -m py_compile skills/loop-engineering/scripts/*.py
+```
+
+The GitHub Actions workflow compiles helper scripts and checks for common private-path or secret patterns.
+
+## Contributing
+
+Issues and pull requests are welcome. For behavior changes, include:
+
+- the workflow failure or improvement being addressed;
+- the route tier or lane behavior affected;
+- updated examples or forward-test notes when relevant;
+- evidence from validation commands.
+
+Keep the plugin focused on Codex-centered loop orchestration. New broad development-methodology skills should usually live in another plugin rather than expanding this one.
+
+## Community
+
+- Issues: https://github.com/liujiazhi-arch/codex-loop-engineering/issues
+- Repository: https://github.com/liujiazhi-arch/codex-loop-engineering
 
 ## License
 
