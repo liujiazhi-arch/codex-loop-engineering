@@ -29,14 +29,16 @@ For tiny edits, config tweaks, docs-only notes, or simple local bug fixes, do no
 First decide the smallest route that controls risk:
 
 1. Choose the route tier before choosing agents.
-2. Verify the six-interface contract: goal, state, context, act, capture, stop.
-3. For T3/T4, create or identify a Strategic Loop Contract; see `references/strategic-loop-contract.md`.
-4. If the strategic target or "good enough" completion criterion is missing, write `strategy-gap: <missing decision>` and stop for a user checkpoint.
-5. For multi-round work, define how state and feedback will be recorded; see `references/state-feedback-schema.md`.
-6. Same active loop correction or continuation? Reuse the existing `loop_id` and owner lane.
-7. Choose `claude_policy` for handoffs and lane artifacts; see `references/claude-policy.md`.
-8. Critical direction or degraded-tool decision? Use `references/user-checkpoints.md`.
-9. Context or handoff risk? Drop a baton before more work or handoff.
+2. Ask the user to define the topology before creating lanes: desired roles, parallel vs sequential work, communication rules, and whether Codex-only or Codex-plus-Claude is expected.
+3. For each new task, derive the project-specific agent roles first, then build the matching identity table and worklog summary before execution starts.
+4. Verify the six-interface contract: goal, state, context, act, capture, stop.
+5. For T3/T4, create or identify a Strategic Loop Contract; see `references/strategic-loop-contract.md`.
+6. If the strategic target or "good enough" completion criterion is missing, write `strategy-gap: <missing decision>` and stop for a user checkpoint.
+7. For multi-round work, define how state and feedback will be recorded; see `references/state-feedback-schema.md`.
+8. Same active loop correction or continuation? Reuse the existing `loop_id` and owner lane.
+9. Choose `claude_policy` for handoffs and lane artifacts; see `references/claude-policy.md`.
+10. Critical direction or degraded-tool decision? Use `references/user-checkpoints.md`.
+11. Context or handoff risk? Drop a baton before more work or handoff.
 
 ## Route Tiers
 
@@ -259,6 +261,16 @@ python3 skills/loop-engineering/scripts/launch-claude-terminal-lane.py \
 
 Loop lanes are role contracts, not fixed job titles. For coding loops the default roles are planning, execution, review, and arbitration; for non-code long projects, map the same pattern to domain roles such as producer, researcher, scriptwriter, editor, publisher, or QA.
 
+Before any lanes exist, the skill should ask the user to define the topology rather than assuming one:
+
+- What are the roles or lane names for this project?
+- Which work should run in parallel, and which work must stay sequential?
+- Should the manager be the only cross-lane communicator, or are some direct handoffs allowed?
+- Do you want a review lane, an arbitration lane, or both?
+- Is Claude optional, required, or not part of the topology?
+- At which points should the user be brought in before the loop continues?
+- What conditions mean the current plan should be revised instead of letting the loop continue?
+
 Read `references/lane-roles.md` when creating, steering, recovering, or reviewing any lane. That reference defines planning, execution, review, arbitration, manager, and dispatcher behavior, including continuous manager monitoring and low-frequency artifact checks.
 
 Essential constraints:
@@ -271,6 +283,7 @@ Essential constraints:
 - Manager/dispatcher does not own planning/execution/review/arbitration decisions. It tracks artifacts, repairs coordination, and routes handoffs.
 - Manager/dispatcher monitoring is artifact-driven and deadline-driven. Do not poll active lane threads every few seconds; each handoff should include `check_after`, `deadline`, and expected artifact paths when the lane may run long.
 - When the user asks the manager/dispatcher to keep a loop moving, do not stop with a normal final while required lane artifacts are pending and no blocker has been reached.
+- If the loop reaches a product, scope, or tradeoff decision that the user should own, stop and ask rather than continuing autonomously.
 - Reviews stay independent: Claude review and Codex review do not read each other before arbitration.
 - Arbitration repairs implementation defects inside the merged plan. Return to planning only for plan defects, scope-changing fixes, or user-goal mismatches.
 - Critical direction changes and degraded Claude-required gates need a user checkpoint; see `references/user-checkpoints.md`.

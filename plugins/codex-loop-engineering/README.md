@@ -1,5 +1,7 @@
 # Codex Loop Engineering
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 Codex Loop Engineering is a Codex plugin for substantial work that benefits from explicit planning, execution, review, arbitration, and repair loops.
 
 Use it when a single pass is likely to miss edge cases: deep refactors, large feature work, architecture-affecting fixes, research synthesis, product/design workflows, multi-file migrations, or recurring processes that need artifact-backed coordination.
@@ -31,9 +33,26 @@ Codex Loop Engineering turns those failure points into explicit interfaces: `goa
 - **Manager-routed lane work**: manager and dispatcher lanes track artifacts, deadlines, identities, and handoffs instead of turning the project into an unstructured group chat.
 - **Clean context boundaries**: planning, execution, review, arbitration, manager, and dispatcher lanes each get role-scoped context, reducing cross-agent contamination.
 - **Single-line communication between lanes**: handoffs are artifact-first and directed; review lanes do not read each other before arbitration.
+- **Configurable role topology**: the framework gives you the orchestration shell, but the actual agent names, counts, and task split are chosen per project instead of being hardcoded.
 - **Codex + Claude optional cross-checking**: Claude can be used for planning or read-only review when available, but the workflow stays Codex-centered and includes honest Codex-only fallback paths.
 - **Reusable skill and harness accumulation**: repeated workflows can be promoted into skills, context packs, checkers, and forward tests instead of being rediscovered each time.
 - **Semi-automated monitoring**: long-running lanes can declare `check_after`, `deadline`, blocker signals, and state artifacts so monitoring is bounded rather than constant polling.
+
+## Role Topology
+
+Loop engineering is a framework for choosing how many agents to use, what they should be called, and how they should communicate. The project owner decides the task plan; this plugin helps turn that plan into a controlled lane graph.
+
+Typical topology choices include:
+
+- **Manager-worker**: one manager lane coordinates several execution lanes and one or more review lanes.
+- **Fan-out / fan-in**: one prompt splits into parallel reads or builds, then merges into one integration lane.
+- **Linear pipeline**: research, draft, execute, review, publish.
+- **Review loop**: execute first, then inspect with a fresh reviewer before arbitration.
+- **Hybrid parallel execution**: parallel subtasks for research, assets, or data prep, followed by a single integration lane.
+
+For every new task, the loop should first derive the project-specific roles, then build the matching identity table and worklog summary for those roles. If the task changes, the role map and worklog schema should change with it.
+
+The main rule is simple: keep role names project-defined, keep contexts clean, and prefer the smallest topology that still lets the work move safely. When the loop reaches a decision point the user should own, or when the agent is uncertain, stop and ask instead of running indefinitely.
 
 ## What It Provides
 
@@ -75,6 +94,17 @@ Ask Codex to use the skill:
 ```text
 Use Codex Loop Engineering for this refactor.
 ```
+
+Before the first lane starts, the plugin should ask the user to define the topology:
+
+- What outcome are we aiming for, and what counts as good enough?
+- Which roles or agents do you want, and should those names be project-specific?
+- Which parts should run in parallel, and which must stay sequential?
+- How should the agents communicate: manager-mediated only, direct handoff, review-only, or mixed?
+- Do you want Codex only, or Codex plus optional Claude review/planning lanes?
+- Which points should always trigger a user checkpoint instead of autonomous continuation?
+
+If the user has not answered those questions yet, the skill should pause instead of inventing a fixed role layout.
 
 Typical artifact bundle:
 
