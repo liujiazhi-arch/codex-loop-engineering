@@ -23,6 +23,40 @@ For multi-round or multi-lane loops, use `state-feedback-schema.md` to record ho
 
 For non-code workflows, map roles to the task instead of forcing coding labels. Example video workflow: topic planner -> researcher -> scriptwriter -> visual planner/editor -> QA/reviewer -> publisher, with manager/dispatcher coordinating artifacts. The durable value is reusable role memory and artifact flow inside Codex, not the specific plan/execute/review labels.
 
+## Human-Readable Lane Naming
+
+Lane names, thread titles, branch names, and worktree folder names are part of
+the product surface for human operators. Manager/dispatcher must choose short,
+stable, human-readable names before creating or continuing lanes.
+
+Rules:
+
+- Prefer `role + letter/number + purpose`, not long artifact slugs or opaque
+  generated ids.
+- Keep visible thread titles short enough to scan in a sidebar: usually 3-6
+  words.
+- Include the work type first: `Plan`, `Exec A`, `Exec B`, `Review`, `Arbitrate`,
+  `Repair A`, `QA`.
+- Include the human purpose second: `Shell Pocket`, `Paper Mode`, `PPT Region`,
+  `Agent Panel`, `Safety QA`.
+- Use compact branch/worktree names such as `codex/b12-a-shell-pocket`,
+  `codex/b12-b-paper`, `codex/b12-c-ppt`, `codex/b12-integrator`, and
+  `codex/b12-repair-a-paper`.
+- Record machine ids separately in the ledger. Do not make humans infer purpose
+  from thread ids, pending worktree ids, UUIDs, or full artifact filenames.
+- If a tool creates a pending worktree/thread with an opaque id, immediately map
+  it to a human label in the ledger and rename the visible thread when the tool
+  supports it.
+
+Examples:
+
+| lane | good visible title | good branch | avoid |
+|---|---|---|---|
+| main integration | `Exec Integrator - B12` | `codex/b12-integrator` | `019eef...` |
+| shell/pocket | `Exec A - Shell Pocket` | `codex/b12-a-shell-pocket` | `batch12-parallel-preview-first-research-workflow-shell-pocket-relaunch` |
+| paper | `Exec B - Paper Mode` | `codex/b12-b-paper` | `worktree-lane-b-phase2-batch12-paper-manuscript-mode` |
+| arbitration | `Arbitrate - B12 Repair` | `codex/b12-arbitration` | `standing-arbitration-lane-019eeec2` |
+
 ## Lane Reuse Policy
 
 Lanes are persistent roles when continuity helps: planning/product, execution, arbitration/repair, manager, and dispatcher may reuse an existing visible thread for the same loop if the thread is not blocked, polluted by incompatible scope, or too stale to recover. Reuse is preferred when the lane benefits from local project memory and repeated setup would waste context.
