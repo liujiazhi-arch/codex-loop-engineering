@@ -3,7 +3,7 @@ name: loop-engineering
 description: Use when a substantial coding, research, content, product, or other long-running project needs Codex-centered multi-agent orchestration, role/lane design, cross-model Claude/Codex planning or review, cross-model debate, named Codex agent threads, dispatcher-mediated handoffs, thread ledgers, worklogs, batons, repair loops, or evidence-based arbitration.
 ---
 
-# Codex Loop Engineering
+# Loop Engineering
 
 ## Purpose
 
@@ -29,16 +29,14 @@ For tiny edits, config tweaks, docs-only notes, or simple local bug fixes, do no
 First decide the smallest route that controls risk:
 
 1. Choose the route tier before choosing agents.
-2. Ask the user to define the topology before creating lanes: desired roles, parallel vs sequential work, communication rules, and whether Codex-only or Codex-plus-Claude is expected.
-3. For each new task, derive the project-specific agent roles first, then build the matching identity table and worklog summary before execution starts.
-4. Verify the six-interface contract: goal, state, context, act, capture, stop.
-5. For T3/T4, create or identify a Strategic Loop Contract; see `references/strategic-loop-contract.md`.
-6. If the strategic target or "good enough" completion criterion is missing, write `strategy-gap: <missing decision>` and stop for a user checkpoint.
-7. For multi-round work, define how state and feedback will be recorded; see `references/state-feedback-schema.md`.
-8. Same active loop correction or continuation? Reuse the existing `loop_id` and owner lane.
-9. Choose `claude_policy` for handoffs and lane artifacts; see `references/claude-policy.md`.
-10. Critical direction or degraded-tool decision? Use `references/user-checkpoints.md`.
-11. Context or handoff risk? Drop a baton before more work or handoff.
+2. Verify the six-interface contract: goal, state, context, act, capture, stop.
+3. For T3/T4, create or identify a Strategic Loop Contract; see `references/strategic-loop-contract.md`.
+4. If the strategic target or "good enough" completion criterion is missing, write `strategy-gap: <missing decision>` and stop for a user checkpoint.
+5. For multi-round work, define how state and feedback will be recorded; see `references/state-feedback-schema.md`.
+6. Same active loop correction or continuation? Reuse the existing `loop_id` and owner lane.
+7. Choose `claude_policy` for handoffs and lane artifacts; see `references/claude-policy.md`.
+8. Critical direction or degraded-tool decision? Use `references/user-checkpoints.md`.
+9. Context or handoff risk? Drop a baton before more work or handoff.
 
 ## Planning Lane Execution Firewall
 
@@ -132,7 +130,7 @@ If the strategic target is absent, write `strategy-gap: <missing decision>` and 
 For T3/T4, the strategic plan and operational route contract should live together as a Strategic Loop Contract, not as duplicate documents. Use `references/strategic-loop-contract.md`, then optionally run:
 
 ```bash
-python3 skills/loop-engineering/scripts/validate-loop-contract.py <contract-or-merged-plan.md>
+python3 /Users/apple/.codex/skills/loop-engineering/scripts/validate-loop-contract.py <contract-or-merged-plan.md>
 ```
 
 ## Execution Batch Sizing And Review Cadence
@@ -162,6 +160,14 @@ tiny "safe next step" merely because it is easier to review under a heavy
 multi-lane process.
 
 For substantial frontend/product-surface work, the execution contract must state the intended visible UI shape before edits: target screen, main panels/cards, empty/degraded states, backend placeholders, and the user calibration point. Prefer landing a visible skeleton tied to stable contracts before filling deep backend behavior when the user needs to judge the interface.
+
+### Parallel Worktree Execution
+
+When a large T4 execution or repair slice has separable surfaces, prefer a main
+integrator/arbitrator plus isolated worktree lanes instead of one overloaded
+thread. Never let multiple agents edit the same checkout. Detailed contract,
+boundary, arbitration-repair, and lane-rotation rules live in
+`references/lane-roles.md`.
 
 Do not use long blank windows for ordinary work. Normal execution/review handoffs should use a practical first check and deadline; deadlines above 45 minutes need an explicit reason such as deep planning, whole-phase architecture review, long test/build operations, or slow external tools. For execution lanes, treat the deadline as a recovery threshold only when the lane appears idle, errored, or artifact-missing without active progress; if the execution lane is visibly active and still editing/testing, keep low-frequency artifact/status monitoring instead of interrupting or declaring failure. If the user says a lane is done, blocked, or wrong, treat that as an immediate state signal: check artifacts first, perform one recovery read if needed, update state/feedback, and route the next lane instead of waiting for the old deadline.
 
@@ -242,14 +248,14 @@ docs/ai-handoffs/YYYY-MM-DD-slug/
 For this project, prefer existing plan conventions:
 
 ```text
-docs/loop-engineering/plans/YYYY-MM-DD-slug-claude-plan.md
-docs/loop-engineering/plans/YYYY-MM-DD-slug-codex-plan.md
-docs/loop-engineering/plans/YYYY-MM-DD-slug-merged-plan.md
-docs/loop-engineering/plans/YYYY-MM-DD-slug-codex-execution-report.md
-docs/loop-engineering/plans/YYYY-MM-DD-slug-claude-review.md
-docs/loop-engineering/plans/YYYY-MM-DD-slug-codex-subagent-review.md
-docs/loop-engineering/plans/YYYY-MM-DD-slug-arbitration.md
-docs/loop-engineering/plans/YYYY-MM-DD-slug-final-report.md
+docs/superpowers/plans/YYYY-MM-DD-slug-claude-plan.md
+docs/superpowers/plans/YYYY-MM-DD-slug-codex-plan.md
+docs/superpowers/plans/YYYY-MM-DD-slug-merged-plan.md
+docs/superpowers/plans/YYYY-MM-DD-slug-codex-execution-report.md
+docs/superpowers/plans/YYYY-MM-DD-slug-claude-review.md
+docs/superpowers/plans/YYYY-MM-DD-slug-codex-subagent-review.md
+docs/superpowers/plans/YYYY-MM-DD-slug-arbitration.md
+docs/superpowers/plans/YYYY-MM-DD-slug-final-report.md
 ```
 
 Rules:
@@ -288,16 +294,6 @@ Core defaults:
 
 Loop lanes are role contracts, not fixed job titles. For coding loops the default roles are planning, execution, review, and arbitration; for non-code long projects, map the same pattern to domain roles such as producer, researcher, scriptwriter, editor, publisher, or QA.
 
-Before any lanes exist, the skill should ask the user to define the topology rather than assuming one:
-
-- What are the roles or lane names for this project?
-- Which work should run in parallel, and which work must stay sequential?
-- Should the manager be the only cross-lane communicator, or are some direct handoffs allowed?
-- Do you want a review lane, an arbitration lane, or both?
-- Is Claude optional, required, or not part of the topology?
-- At which points should the user be brought in before the loop continues?
-- What conditions mean the current plan should be revised instead of letting the loop continue?
-
 Read `references/lane-roles.md` when creating, steering, recovering, or reviewing any lane. That reference defines planning, execution, review, arbitration, manager, and dispatcher behavior, including continuous manager monitoring and low-frequency artifact checks.
 
 Essential constraints:
@@ -310,7 +306,6 @@ Essential constraints:
 - Manager/dispatcher does not own planning/execution/review/arbitration decisions. It tracks artifacts, repairs coordination, and routes handoffs.
 - Manager/dispatcher monitoring is artifact-driven and deadline-driven. Do not poll active lane threads every few seconds; each handoff should include `check_after`, `deadline`, and expected artifact paths when the lane may run long.
 - When the user asks the manager/dispatcher to keep a loop moving, do not stop with a normal final while required lane artifacts are pending and no blocker has been reached.
-- If the loop reaches a product, scope, or tradeoff decision that the user should own, stop and ask rather than continuing autonomously.
 - Reviews stay independent: Claude review and Codex review do not read each other before arbitration.
 - Arbitration repairs implementation defects inside the merged plan. Return to planning only for plan defects, scope-changing fixes, or user-goal mismatches.
 - Critical direction changes and degraded Claude-required gates need a user checkpoint; see `references/user-checkpoints.md`.
@@ -631,7 +626,7 @@ Do not turn a one-off project lesson into a skill unless it generalizes beyond t
 - Giving every lane broad project context when only planning needs it.
 - Skipping `thread-ledger.md` rows for `send_message_to_thread`.
 - Skipping agent worklog entries, losing lessons and repeated pitfalls.
-- Making the manager lane the central relay for all messages instead of letting lanes hand off directly.
+- Making `经理Agent` the central relay for all messages instead of letting lanes hand off directly.
 - Treating the bootstrap thread as a main agent instead of assigning a real lane role.
 - Starting a new lane set for a correction to the active loop instead of messaging the existing owner lane.
 - Auto-archiving lane threads before the user has finished evaluating the loop.

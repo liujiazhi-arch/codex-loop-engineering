@@ -358,6 +358,64 @@ Rules:
 - If a helper discovers a plan gap, scope change, mutation/runtime need, or product-direction
   mismatch, the execution lane records the blocker and stops instead of silently expanding scope.
 
+### Parallel Worktree Execution Lanes
+
+For large T4 execution slices, manager/dispatcher may split implementation across
+isolated worktrees instead of asking one execution lane to do everything. Use this
+when the work naturally separates by product surface, data/model contract,
+runtime boundary, fixture set, visual QA surface, or test/evidence layer.
+
+Default shape:
+
+```text
+Main Integrator lane
+  owns shared contracts, final merge/integration, full verification, consolidated report
+
+Parallel Worktree lanes A/B/C/...
+  each owns one isolated worktree/branch, one write scope, one lane report
+
+Late QA/Safety lane
+  starts only after lane outputs or an integrated preview exist
+```
+
+Manager/dispatcher contract requirements:
+
+- name every worktree path, branch, lane role, write scope, and forbidden scope;
+- forbid concurrent edits to the same checkout/worktree;
+- require the integrator to define shared component/data/CSS boundaries before
+  parallel lanes depend on them, or explicitly state the stable boundaries from
+  existing code;
+- give each lane one expected artifact path and focused verification commands;
+- require lane reports to include touched files, tests run, known conflicts,
+  remaining integration work, safety check, and lifecycle;
+- require the integrator to consume lane reports/diffs, resolve conflicts, run
+  focused then full tests/build/browser evidence, and write one consolidated
+  execution report;
+- state the integration order, such as shell/data boundary -> feature surface A
+  -> feature surface B -> Agent/interaction -> QA/safety.
+
+Parallel lane rules:
+
+- A lane may edit only its assigned worktree and write scope.
+- A lane must not modify the product root, sibling worktrees, shared Git state,
+  or another lane's report.
+- A lane must not stage, commit, push, reset, stash, or run destructive cleanup
+  unless that operation is explicitly authorized in the handoff.
+- If a lane accidentally edits outside its worktree/scope, it must stop,
+  compare evidence, recover only clearly attributable out-of-scope edits, and
+  record `Boundary Incident / Recovery` in its report. If attribution is
+  uncertain, stop and escalate to manager instead of reverting.
+
+Integrator rules:
+
+- The integrator is the only lane that merges/selects patches from parallel
+  lanes.
+- The integrator must not invent completed lane work when lane reports or diffs
+  are absent; it records blockers or partial integration honestly.
+- The consolidated execution report must distinguish lane-local verification
+  from integrator verification, and must include git/worktree state for the
+  integration worktree plus any relevant boundary incidents.
+
 ## Phase Sizing And Review Cadence
 
 For substantial long-running work, spend more effort in planning and reduce review churn during execution.
@@ -376,7 +434,7 @@ Planning should define:
 
 If planning cannot state the strategic target, write `strategy-gap: <missing decision>` and stop for a user checkpoint. Do not compensate by writing a longer execution task list.
 
-Execution should group work into larger slices when the pieces belong to the same user workflow. For example, a content production workflow might group research collection, material preparation, draft creation, editing, and QA into one or two coherent execution slices instead of five helper-sized review loops.
+Execution should group work into larger slices when the pieces belong to the same user workflow. Example for a biology learning workbench: daily guide/status command center, acquisition refresh facade, queue lifecycle commands, weekly project refresh, and PPT readiness command/report may be grouped into one or two coherent execution slices instead of five helper-sized review loops.
 
 An execution slice is too small for a full review loop when it only changes one helper, one internal function, or one local cleanup without landing a visible workflow state, product surface, durable contract, migration boundary, or risk boundary.
 
@@ -460,6 +518,43 @@ Arbitration lane should:
 - stay reusable for the active loop unless the full milestone closes, a replacement
   lane is confirmed, the lane is corrupted/stale, or the user explicitly asks.
 
+### Parallel Arbitration / Repair Worktrees
+
+Large repair phases may use isolated worktree repair lanes, but adjudication
+authority stays centralized. Use this when accepted findings span separable
+surfaces, many files, or conflicting patches that would overload one arbitration
+thread.
+
+Default shape:
+
+```text
+Chief Arbitration lane
+  owns findings disposition, repair contract, integration, final report
+
+Repair Worktree lanes A/B/C/...
+  each owns one accepted finding group or product surface
+
+Optional QA/Safety lane
+  checks integrated repairs after the chief arbitration lane has a preview
+```
+
+Rules:
+
+- Only the chief arbitration lane decides finding disposition:
+  `accept`, `reject`, `defer`, `third path`, or `needs more evidence`.
+- Repair lanes may implement only already-dispositioned, scoped repairs. They do
+  not independently reinterpret review findings or expand product direction.
+- Each repair lane needs its own worktree/branch, write scope, expected repair
+  report, focused verification, known conflict list, and stop condition.
+- The chief arbitration lane alone integrates repair outputs, resolves
+  conflicts, runs required verification, and writes arbitration/final artifacts.
+- If repair lanes reveal a plan gap, scope change, or uncertain evidence, they
+  stop and report back to chief arbitration. The chief lane decides whether to
+  gather evidence, return to planning, or defer.
+- Boundary incidents follow the same rule as execution worktrees: recover only
+  clearly attributable out-of-scope edits and record the incident in the repair
+  report, ledger, and final arbitration summary.
+
 ## Repair Routing
 
 After review finds a problem, route it by defect type:
@@ -497,6 +592,39 @@ Manager should:
 - keep monitoring active loops when the user asks it to keep moving.
 
 Manager must not silently execute business-code changes, overrule arbitration without evidence, or centralize all lane communication as hidden chat.
+
+### Manager / Planning Lane Rotation
+
+Long-lived manager and planning lanes can become coordination debt when chat
+history accumulates old heartbeats, closed batches, stale lane ids, and
+superseded routes. Rotate them deliberately before context corruption affects
+dispatch.
+
+Rotate a manager or planning lane when any of these are true:
+
+- repeated context compression or interrupted turns make current state
+  unreliable;
+- old route instructions, obsolete heartbeats, or stale lane ids keep resurfacing;
+- the lane has accumulated multiple completed phases and the next phase needs a
+  clean dispatch context;
+- the user reports the manager/planner is stuck, slow, confused, or reviving old
+  work;
+- the lane is near context limits and exact dirty state, active lanes, or
+  blockers matter.
+
+Rotation contract:
+
+- Write a baton/context pack before handoff. It must include loop id, roots,
+  canonical artifacts, active lanes, retired lanes, current phase status,
+  pending expected artifacts, safety boundaries, stale monitors to delete/update,
+  dirty git/worktree state, and next routing decision.
+- Record the rotation in state-feedback, worklog, and thread-ledger.
+- Mark the old manager/planning lane retired, archived, or checkpointed with
+  `next_expected_use: none` unless a specific future use is named.
+- The new lane must start artifact-first from the baton/context pack and current
+  ledgers, not from inherited chat memory.
+- Do not let both old and new manager lanes actively dispatch the same loop.
+  Overlapping managers are allowed only during explicit handoff validation.
 
 ## Dispatcher Role
 
