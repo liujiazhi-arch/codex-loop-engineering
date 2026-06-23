@@ -163,6 +163,31 @@ multi-lane process.
 
 For substantial frontend/product-surface work, the execution contract must state the intended visible UI shape before edits: target screen, main panels/cards, empty/degraded states, backend placeholders, and the user calibration point. Prefer landing a visible skeleton tied to stable contracts before filling deep backend behavior when the user needs to judge the interface.
 
+### Lightweight Control Plane
+
+Normal manager/dispatcher work should stay lightweight. The manager decides
+whether the current artifact is enough to route the next phase and records only
+the minimum state needed for that route. It should not spend the loop repeatedly
+proving that it has not made a control-plane mistake.
+
+Keep hard gates heavy: planning lanes do not write production code, execution
+requires explicit handoff and worktree/branch boundaries, worker lanes must not
+pollute the main checkout, major code changes still need execution reports,
+independent review, and arbitration/repair, and P0/P1 findings, user direction
+changes, required Claude gates, and worktree boundary incidents still require
+full handling.
+
+Heartbeat/monitor checks are light by default: check whether the expected
+artifact exists, whether the lane is clearly active/idle/stuck/errored, whether
+the recovery deadline has passed, and whether an obvious blocker exists. Full
+heading, validator, worktree, verification, browser/DOM/screenshot, safety, and
+review-readiness validation belongs to stage gates, not every heartbeat.
+
+Use compact records. `thread-ledger` tracks lane/thread, artifact path, status,
+and next action. `state-feedback` records only events that change the next
+prompt, owner, context, or action. `worklog` records human-readable summaries
+and reusable lessons. Do not duplicate one routine event across all three.
+
 Do not use long blank windows for ordinary work. Normal execution/review handoffs should use a practical first check and deadline; deadlines above 45 minutes need an explicit reason such as deep planning, whole-phase architecture review, long test/build operations, or slow external tools. For execution lanes, treat the deadline as a recovery threshold only when the lane appears idle, errored, or artifact-missing without active progress; if the execution lane is visibly active and still editing/testing, keep low-frequency artifact/status monitoring instead of interrupting or declaring failure. If the user says a lane is done, blocked, or wrong, treat that as an immediate state signal: check artifacts first, perform one recovery read if needed, update state/feedback, and route the next lane instead of waiting for the old deadline.
 
 ## Admission And New-Lane Gates
@@ -193,13 +218,17 @@ Prefer a fresh lane/session when independence is part of the quality gate: Claud
 
 If choosing a new thread over a reusable lane, write the reason in the ledger. If choosing reuse, send a structured continuation handoff with the new expected artifact paths, boundaries, `check_after`, and `deadline`.
 
-After a lane artifact lands and is validated, decide its lifecycle immediately:
+After a formal lane artifact lands, validates, and is absorbed, rejected, or
+deferred by its next owner, decide its lifecycle:
 
 - Review lanes are one-shot by default. Claude review, Codex independent review, adversarial critique, and second-opinion lanes should be recorded with `next_expected_use: none` and `close_or_keep: close`, then archived after the review artifact is valid and the ledger/worklog records completion.
 - Execution lanes, arbitration/repair lanes, planning/product/design companion lanes, manager, and dispatcher may stay open only when a named future use exists. Record `next_expected_use: <specific use>` and `close_or_keep: keep|checkpoint`.
-- For active T3/T4 product loops, arbitration/repair is a standing role by default, like execution and manager. Do not archive it after a phase final report when the broader loop or milestone is still active; record `next_expected_use: continue arbitration/repair for active loop` and `close_or_keep: keep`. Archive arbitration only after the full milestone closes, a replacement lane is confirmed, the lane is corrupted/stale, or the user explicitly asks.
+- Arbitration/repair may be reused only when a named next arbitration/repair use exists and the lane remains healthy. After a batch final report is absorbed, either keep it with a specific next use or archive it; do not leave it visible as passive history.
 - If the next phase needs independent judgment, do not keep or reuse the old review lane. Archive it and create a fresh bounded review lane.
-- If no future use is named, archive the lane. Open, completed review lanes left in the UI are coordination debt.
+- If no future use is named, archive the lane at the next cleanup gate. Open, completed review lanes left in the UI are coordination debt.
+- Do not turn lifecycle cleanup into busywork: ordinary heartbeats may note
+  "artifact still pending" or "artifact landed"; full archive/keep decisions
+  belong to artifact validation, absorption, route change, or explicit cleanup.
 
 ## The User's Five-Step Workflow
 
@@ -310,6 +339,12 @@ Essential constraints:
 - Manager/dispatcher does not own planning/execution/review/arbitration decisions. It tracks artifacts, repairs coordination, and routes handoffs.
 - Manager/dispatcher monitoring is artifact-driven and deadline-driven. Do not poll active lane threads every few seconds; each handoff should include `check_after`, `deadline`, and expected artifact paths when the lane may run long.
 - When the user asks the manager/dispatcher to keep a loop moving, do not stop with a normal final while required lane artifacts are pending and no blocker has been reached.
+- Manager/dispatcher should not send a final response while a required routing
+  action is still pending, including artifact validation that determines the next
+  phase, heartbeat create/update/delete, thread title/archive/create/send, lane
+  handoff, recovery prompt, or state records that change the next prompt, owner,
+  context, or action. Optional duplicate bookkeeping must not keep the manager
+  busy after the route is clear. Never send an empty or placeholder final.
 - If the loop reaches a product, scope, or tradeoff decision that the user should own, stop and ask rather than continuing autonomously.
 - Reviews stay independent: Claude review and Codex review do not read each other before arbitration.
 - Arbitration repairs implementation defects inside the merged plan. Return to planning only for plan defects, scope-changing fixes, or user-goal mismatches.
@@ -629,8 +664,13 @@ Do not turn a one-off project lesson into a skill unless it generalizes beyond t
 - Sending unstructured cross-lane "continue" messages.
 - Repeating large plan/report bodies in handoffs instead of sending artifact paths and read requirements.
 - Giving every lane broad project context when only planning needs it.
-- Skipping `thread-ledger.md` rows for `send_message_to_thread`.
-- Skipping agent worklog entries, losing lessons and repeated pitfalls.
+- Treating every `send_message_to_thread` as needing a long ledger/worklog
+  entry. Record compact lane state, artifact path, owner, and next action; keep
+  longer notes only for route changes, incidents, and lessons that affect future
+  prompts.
+- Duplicating the same event across thread-ledger, worklog, and state-feedback.
+  Use one compact ledger/status row plus state-feedback only when the event
+  changes the next prompt, owner, context, or action.
 - Making the manager lane the central relay for all messages instead of letting lanes hand off directly.
 - Treating the bootstrap thread as a main agent instead of assigning a real lane role.
 - Starting a new lane set for a correction to the active loop instead of messaging the existing owner lane.

@@ -4,11 +4,11 @@ Use this reference when a loop needs named lanes, cross-thread handoffs, manager
 
 ## Core Principle
 
-Artifacts are the shared memory. Chat history may help a lane think, but cross-lane coordination must flow through explicit artifacts, ledgers, worklogs, and handoffs.
+Artifacts are the shared memory. Chat history may help a lane think, but cross-lane coordination must flow through explicit artifacts, compact ledgers, worklogs for human lessons, and handoffs.
 
 Treat orchestration as event/state driven. Inspired by manager-style agent frameworks and graph workflows, the manager tracks lane state, deadlines, and artifacts; it should not continuously read worker conversation just to feel current.
 
-For multi-round or multi-lane loops, use `state-feedback-schema.md` to record how capture changes the next prompt, context, owner, or action. Feedback is not just a review comment; it is a recorded state transition.
+For multi-round or multi-lane loops, use `state-feedback-schema.md` only when capture changes the next prompt, context, owner, or action. Do not duplicate the same routine event across state-feedback, ledger, and worklog.
 
 ## Role Types
 
@@ -19,7 +19,7 @@ For multi-round or multi-lane loops, use `state-feedback-schema.md` to record ho
 | review / QA | independently critique execution against plan and evidence | review findings |
 | arbitration / editor-in-chief | adjudicate findings, repair accepted issues, close the phase | arbitration, repair report, final report |
 | manager | audit status, recover lost state, select next phase, maintain coordination | worklog/ledger updates |
-| dispatcher | physically sends messages, creates/continues threads, monitors artifacts | ledger rows, handoffs |
+| dispatcher | physically sends messages, creates/continues threads, monitors artifacts | compact ledger rows, handoffs |
 
 For non-code workflows, map roles to the task instead of forcing coding labels. Example video workflow: topic planner -> researcher -> scriptwriter -> visual planner/editor -> QA/reviewer -> publisher, with manager/dispatcher coordinating artifacts. The durable value is reusable role memory and artifact flow inside Codex, not the specific plan/execute/review labels.
 
@@ -175,9 +175,9 @@ Rules:
 
 ## Lane Cleanup And Archiving
 
-Lane lifecycle is part of dispatch, not optional UI housekeeping. After any lane
-artifact lands and passes required heading/evidence checks, manager/dispatcher
-must record one of:
+Lane lifecycle is part of dispatch, but it must stay event-driven. When a formal
+lane artifact lands, passes required heading/evidence checks, and is absorbed,
+rejected, or deferred by the next owner, manager/dispatcher records one of:
 
 ```text
 next_expected_use: none
@@ -197,18 +197,14 @@ Default decisions by lane:
   one-shot. Archive after the review artifact is valid and ledger/worklog completion
   is recorded. Do not keep these lanes for later phases; independence requires a
   fresh bounded lane next time.
-- **Execution**: keep when the same loop will continue implementing related
-  product/contract slices and the thread is not stale, blocked, or polluted by
-  incompatible scope. Archive only after the broader milestone is complete or a
-  replacement execution lane is chosen.
-- **Arbitration/repair**: keep as a standing role for active T3/T4 product loops,
-  especially when the same milestone will continue through more execution,
-  review, and repair. After a phase final report lands, record
-  `next_expected_use: continue arbitration/repair for active loop` and
-  `close_or_keep: keep` unless the broader milestone is actually closed.
-  Archive arbitration only when the full milestone closes, a replacement lane is
-  confirmed, the lane is corrupted/stale, or the user explicitly asks. Do not
-  archive merely because one batch's final report exists.
+- **Execution**: keep only while follow-on execution in the same healthy context
+  is expected. After final execution/report evidence is absorbed by review,
+  arbitration, or next-batch planning, either record a specific next execution
+  use or archive/checkpoint it at a cleanup gate.
+- **Arbitration/repair**: keep only while active findings disposition, repair
+  integration, or a named next arbitration use exists and the lane is healthy.
+  After final report closeout is validated, archive it at a cleanup gate unless
+  the ledger names a concrete next repair/arbitration task.
 - **Planning/product/design**: keep only when a concrete next product/strategy/UX
   use is named. Archive when the plan/consultation has been absorbed into a formal
   artifact and no follow-up is expected.
@@ -219,9 +215,9 @@ Default decisions by lane:
 - **Manager/dispatcher**: keep for the active loop, unless the user explicitly
   pauses, cancels, or moves the loop elsewhere.
 
-If a completed lane remains visible without a named future use, treat that as a
-coordination defect: update the ledger/worklog, archive it, and avoid using it as
-implicit state.
+If a completed lane remains visible without a named future use after a cleanup
+gate, treat that as a coordination defect: update the compact ledger/worklog,
+archive it, and avoid using it as implicit state.
 
 ## Planning Lane
 
@@ -506,7 +502,7 @@ Dispatcher may:
 
 - create/continue lane threads;
 - send standard handoffs;
-- maintain ledger rows;
+- maintain compact ledger rows;
 - perform low-frequency artifact checks;
 - include the latest state/feedback artifact path in handoffs when it changes the next context;
 - record Claude lifecycle fields (`claude_session_mode`, `reuse_reason`, `next_expected_use`, `close_or_keep`) for Claude handoffs;
@@ -546,11 +542,12 @@ Ordinary execution/review deadlines above 45 minutes require a written reason in
 User-visible state signals override the clock. If the user says a lane finished, stalled, produced a bad artifact, or is waiting on a review, immediately check expected artifacts and ledger/worklog state; if artifacts are missing or malformed, perform one recovery read/handoff. Do not ignore the user signal because the old `deadline` has not passed.
 
 Subagent completion notifications are also state signals, not passive background
-noise. When a delegated worker/subagent reports completion, immediately run the
-same artifact-first validation that a heartbeat would run: check expected files,
-required headings, verification summaries, and lifecycle/state feedback. Do not
-wait for the next monitor window before deciding whether to update ledger/worklog,
-delete or retarget stale automations, or route the next lane.
+noise. When a delegated worker/subagent reports completion, run the same
+artifact-first check that a heartbeat would run: check expected files first, then
+perform full heading/evidence/lifecycle validation only if the artifact exists or
+the route is at a stage gate. Do not wait for the next monitor window before
+deciding whether to route the next lane, retarget stale automations, or record a
+state change that affects the next prompt, owner, context, or action.
 
 When the route changes, update or delete stale monitors, reminders, or heartbeat automations that still point at obsolete artifacts, lanes, or deadlines. A stale monitor is a coordination bug: it can restart superseded work or make the manager wait on an artifact that no longer matters.
 
@@ -575,6 +572,14 @@ automation record when the wakeup is important for loop progress.
 When the user explicitly asks manager/dispatcher to keep a loop moving:
 
 - do not end with a normal final while a required artifact is pending and no blocker has been reached;
+- do not use the final channel while any required manager/control-plane routing
+  action is still pending: artifact checks that determine the next phase,
+  heartbeat create/update/delete, thread title/archive/create/send, lane handoff,
+  recovery prompt, or state records that change the next prompt, owner, context,
+  or action. Optional duplicate bookkeeping must not keep the manager busy after
+  the route is clear. A heartbeat final must contain the complete
+  `<heartbeat>...</heartbeat>` decision only after intended actions for that turn
+  are complete; empty or placeholder final messages are a coordination defect.
 - prefer artifact/file checks over frequent thread reads;
 - use the lane's `check_after` and `deadline`; if absent, set one before or in the next handoff instead of polling blindly;
 - if an artifact is missing beyond the wait window, first check whether the owner lane is active; if active/progressing, keep monitoring without interruption;
@@ -602,7 +607,7 @@ Use role-scoped context as a starting point, not a capability limit:
 | execution / maker | merged plan, local files/tests for the phase, existing patterns, failing tests |
 | review / QA | merged plan, execution report, changed diff, relevant complete functions, test output, acceptance criteria |
 | arbitration / repair | both reviews, execution report, targeted live evidence, verification output |
-| manager / dispatcher | ledger rows, artifact paths, lane state, deadlines, blockers |
+| manager / dispatcher | compact ledger rows, artifact paths, lane state, deadlines, blockers |
 
 Rules:
 
@@ -615,7 +620,8 @@ Rules:
 
 ## Handoff Requirements
 
-Every cross-lane message should include:
+Formal T2+ cross-lane handoffs should include the applicable fields below. Omit
+fields that are irrelevant to the route instead of filling them with ceremony:
 
 ```text
 <!-- LOOP:AGENT_MESSAGE v1 -->
